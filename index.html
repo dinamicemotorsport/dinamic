@@ -29,7 +29,7 @@
 
     <div id="loading" class="loading-overlay">
         <div class="text-2xl font-racing animate-pulse mb-4 text-red-600">CONNESSIONE AL TEAM...</div>
-        <div id="loading-status" class="text-xs text-gray-500">Inizializzazione Firebase...</div>
+        <div id="loading-status" class="text-xs text-gray-500 text-center px-4">In attesa dei dati Firebase...</div>
         <div class="w-48 h-1 bg-gray-800 rounded mt-4">
             <div class="h-full bg-red-600 animate-[loading_2s_infinite]"></div>
         </div>
@@ -93,53 +93,63 @@
         import { getFirestore, doc, setDoc, onSnapshot, collection, updateDoc, deleteDoc, addDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
         // ==========================================
-        // 1. INCOLLA LE TUE CHIAVI FIREBASE QUI SOTTO
+        // CONFIGURAZIONE FIREBASE
         // ==========================================
         const manualConfig = {
-            apiKey:"AIzaSyBPgrzB_g7PqEDizHf95VXZLj9s5s-lDIM",
-            authDomain:"database-special-event.firebaseapp.com",
-            projectId:"database-special-event",
-            storageBucket:"database-special-event.firebasestorage.app",
-            messagingSenderId:"380853834737",
-            appId:"1:380853834737:web:85099e91fed8c285426a50",
-        }; 
+              apiKey: "AIzaSyBPgrzB_g7PqEDizHf95VXZLj9s5s-lDIM",
+  authDomain: "database-special-event.firebaseapp.com",
+  projectId: "database-special-event",
+  storageBucket: "database-special-event.firebasestorage.app",
+  messagingSenderId: "380853834737",
+  appId: "1:380853834737:web:85099e91fed8c285426a50",
+  measurementId: "G-0VZBTGRX32"
+};
         // ==========================================
 
-        const firebaseConfig = (manualConfig.apiKey !== "AIzaSyBPgrzB_g7PqEDizHf95VXZLj9s5s-lDIM") ? manualConfig : (typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : null);
+        const loadingStatus = document.getElementById('loading-status');
+        const syncStatus = document.getElementById('sync-status');
+
+        // Determina quale config usare
+        const isConfigured = (manualConfig.apiKey !== "AIzaSyBPgrzB_g7PqEDizHf95VXZLj9s5s-lDIM" && manualConfig.apiKey !== "");
+        const firebaseConfig = isConfigured ? manualConfig : (typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : null);
         const appId = typeof __app_id !== 'undefined' ? __app_id : 'simracing-team-v1';
 
         if (!firebaseConfig) {
-            document.getElementById('sync-status').textContent = "CONFIG MANCANTE";
-            document.getElementById('loading-status').textContent = "Errore: Inserisci le tue chiavi Firebase nel codice (riga 100).";
+            syncStatus.textContent = "CONFIG MANCANTE";
+            loadingStatus.innerHTML = "<span class='text-red-500 font-bold'>ERRORE DI CONFIGURAZIONE</span><br>Sostituisci i valori 'INSERISCI_QUI' alla riga 100 con i tuoi dati Firebase.";
         } else {
-            const app = initializeApp(firebaseConfig);
-            const auth = getAuth(app);
-            const db = getFirestore(app);
+            try {
+                const app = initializeApp(firebaseConfig);
+                const auth = getAuth(app);
+                const db = getFirestore(app);
 
-            const startAuth = async () => {
-                try {
-                    document.getElementById('loading-status').textContent = "Autenticazione in corso...";
-                    if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-                        await signInWithCustomToken(auth, __initial_auth_token);
-                    } else {
-                        await signInAnonymously(auth);
+                const startAuth = async () => {
+                    try {
+                        loadingStatus.textContent = "Connessione sicura in corso...";
+                        if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                            await signInWithCustomToken(auth, __initial_auth_token);
+                        } else {
+                            await signInAnonymously(auth);
+                        }
+                    } catch (e) {
+                        console.error("Auth error:", e);
+                        loadingStatus.innerHTML = "<span class='text-red-500 font-bold'>ERRORE AUTH</span><br>" + e.message;
                     }
-                } catch (e) {
-                    console.error("Auth error:", e);
-                    document.getElementById('loading-status').textContent = "Errore Autenticazione: " + e.message;
-                }
-            };
+                };
 
-            startAuth();
+                startAuth();
 
-            onAuthStateChanged(auth, (user) => {
-                if (user) {
-                    document.getElementById('sync-status').textContent = "ONLINE";
-                    document.getElementById('sync-status').className = "font-bold text-green-500 text-xs uppercase";
-                    document.getElementById('loading').style.display = 'none';
-                    startSync(db, appId);
-                }
-            });
+                onAuthStateChanged(auth, (user) => {
+                    if (user) {
+                        syncStatus.textContent = "ONLINE";
+                        syncStatus.className = "font-bold text-green-500 text-xs uppercase";
+                        document.getElementById('loading').style.display = 'none';
+                        startSync(db, appId);
+                    }
+                });
+            } catch (initErr) {
+                loadingStatus.innerHTML = "<span class='text-red-500 font-bold'>ERRORE CRITICO</span><br>" + initErr.message;
+            }
         }
 
         function startSync(db, appId) {
@@ -213,15 +223,7 @@
             const status = document.getElementById('sync-status');
             status.textContent = "ERRORE PERMESSI";
             status.className = "font-bold text-red-500 text-xs uppercase";
-            console.error(msg);
         }
     </script>
 </body>
 </html>
-
-
-
-
-
-
-
