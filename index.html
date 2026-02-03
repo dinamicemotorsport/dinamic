@@ -109,10 +109,12 @@
 <body class="p-4 md:p-8">
 
     <div id="loading" class="loading-overlay">
-        <div class="text-2xl font-racing animate-pulse mb-4 text-red-600">CONNESSIONE FIRESTONE...</div>
+        <div class="text-2xl font-racing animate-pulse mb-4 text-red-600">INIZIALIZZAZIONE...</div>
+        <div id="loading-subtext" class="text-xs text-gray-500 mb-4">Verifica configurazione in corso</div>
         <div class="w-48 h-1 bg-gray-800 rounded">
             <div class="h-full bg-red-600 animate-[loading_2s_infinite]"></div>
         </div>
+        <button id="skip-loading" class="mt-8 text-[10px] text-gray-600 underline hidden" onclick="hideLoading()">Salta caricamento (Modalità Offline)</button>
     </div>
 
     <!-- Header -->
@@ -125,11 +127,11 @@
         <div class="flex gap-4">
             <div class="glass p-3 rounded-lg text-center min-w-[150px]">
                 <span class="block text-xs uppercase text-gray-400">Il tuo ID Pilota</span>
-                <span id="user-id-display" class="text-[10px] font-mono text-gray-500">Inizializzazione...</span>
+                <span id="user-id-display" class="text-[10px] font-mono text-gray-500">Locale</span>
             </div>
             <div class="glass p-3 rounded-lg text-center min-w-[120px]">
                 <span class="block text-xs uppercase text-gray-400">Database</span>
-                <span id="sync-status" class="font-bold text-yellow-500 text-xs uppercase">Offline</span>
+                <span id="sync-status" class="font-bold text-gray-500 text-xs uppercase">In attesa</span>
             </div>
         </div>
     </header>
@@ -262,7 +264,7 @@
                             </tr>
                         </thead>
                         <tbody id="timingBody" class="divide-y divide-gray-800">
-                            <!-- Dati sincronizzati da Firestore -->
+                            <!-- Dati sincronizzati -->
                         </tbody>
                     </table>
                 </div>
@@ -276,7 +278,7 @@
                 <div class="space-y-4">
                     <textarea id="briefing-notes" class="db-input w-full h-32 bg-black/40 border border-gray-700 rounded p-4 text-sm focus:outline-none focus:border-red-600 transition-colors text-white" placeholder="Scrivi qui le note per il team..."></textarea>
                     <div class="text-right">
-                        <span id="last-save-time" class="text-[9px] text-gray-500 uppercase tracking-widest">In attesa di connessione...</span>
+                        <span id="last-save-time" class="text-[9px] text-gray-500 uppercase tracking-widest">Nessuna sincronizzazione attiva</span>
                     </div>
                 </div>
             </section>
@@ -288,54 +290,73 @@
         import { getAuth, signInAnonymously, onAuthStateChanged, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, doc, setDoc, onSnapshot, collection, query, updateDoc, deleteDoc, addDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-        // CONFIGURAZIONE AUTOMATICA
-        const firebaseConfig = JSON.parse(__firebase_config);
-        const app = initializeApp(firebaseConfig);
-        const auth = getAuth(app);
-        const db = getFirestore(app);
-        
-        // Risoluzione ID App
-        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-simracing-app';
+        // GESTIONE CONFIGURAZIONE MANCANTE (Per GitHub)
+        let firebaseConfig = null;
+        let appId = 'default-simracing-app';
 
-        let currentUser = null;
-
-        // INIZIALIZZAZIONE AUTENTICAZIONE (RULE 3)
-        async function initAuth() {
-            try {
-                if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-                    await signInWithCustomToken(auth, __initial_auth_token);
-                } else {
-                    await signInAnonymously(auth);
-                }
-                
-                onAuthStateChanged(auth, (user) => {
-                    if (user) {
-                        currentUser = user;
-                        document.getElementById('user-id-display').textContent = user.uid.substring(0, 12) + '...';
-                        document.getElementById('sync-status').textContent = "CONNESSO";
-                        document.getElementById('sync-status').className = "font-bold text-green-500 text-xs uppercase";
-                        document.getElementById('loading').style.opacity = '0';
-                        setTimeout(() => document.getElementById('loading').style.display = 'none', 500);
-                        startSync();
-                    }
-                });
-            } catch (error) {
-                console.error("Errore connessione Firestone:", error);
-                document.getElementById('sync-status').textContent = "ERRORE";
-                document.getElementById('sync-status').className = "font-bold text-red-500 text-xs uppercase";
+        try {
+            if (typeof __firebase_config !== 'undefined') {
+                firebaseConfig = JSON.parse(__firebase_config);
             }
+            if (typeof __app_id !== 'undefined') {
+                appId = __app_id;
+            }
+        } catch (e) {
+            console.warn("Configurazione Firebase non trovata nell'ambiente.");
         }
 
-        // SINCRONIZZAZIONE REAL-TIME (RULE 1 & 2)
-        function startSync() {
-            if (!currentUser) return;
+        // Funzione per nascondere il loading manualmente
+        window.hideLoading = () => {
+            const loader = document.getElementById('loading');
+            if (loader) {
+                loader.style.opacity = '0';
+                setTimeout(() => loader.style.display = 'none', 500);
+            }
+        };
 
-            // FIX: Assicuriamoci che il percorso abbia esattamente 6 segmenti per i documenti
-            // Struttura richiesta: artifacts / {appId} / public / data / {collectionName} / {docId}
-            
-            // Documento Configurazione (6 segmenti)
+        // Se non c'è configurazione, sblocchiamo comunque la pagina dopo 3 secondi
+        if (!firebaseConfig) {
+            document.getElementById('loading-subtext').textContent = "Configurazione cloud non rilevata. Uso modalità locale.";
+            document.getElementById('skip-loading').classList.remove('hidden');
+            setTimeout(window.hideLoading, 3000);
+        } else {
+            // Se c'è configurazione, procediamo normalmente
+            const app = initializeApp(firebaseConfig);
+            const auth = getAuth(app);
+            const db = getFirestore(app);
+            let currentUser = null;
+
+            async function initAuth() {
+                try {
+                    if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                        await signInWithCustomToken(auth, __initial_auth_token);
+                    } else {
+                        await signInAnonymously(auth);
+                    }
+                    
+                    onAuthStateChanged(auth, (user) => {
+                        if (user) {
+                            currentUser = user;
+                            document.getElementById('user-id-display').textContent = user.uid.substring(0, 12) + '...';
+                            document.getElementById('sync-status').textContent = "ONLINE";
+                            document.getElementById('sync-status').className = "font-bold text-green-500 text-xs uppercase";
+                            window.hideLoading();
+                            startSync(db, appId, user);
+                        }
+                    });
+                } catch (error) {
+                    console.error("Errore Firebase:", error);
+                    document.getElementById('sync-status').textContent = "OFFLINE";
+                    window.hideLoading();
+                }
+            }
+
+            initAuth();
+        }
+
+        function startSync(db, appId, user) {
+            // Sync Global Config
             const globalDocRef = doc(db, 'artifacts', appId, 'public', 'data', 'config_group', 'global_config');
-            
             onSnapshot(globalDocRef, (snapshot) => {
                 if (snapshot.exists()) {
                     const data = snapshot.data();
@@ -345,68 +366,41 @@
                             el.value = data[key];
                         }
                     });
-                    updateLastSave();
+                    document.getElementById('last-save-time').textContent = "ULTIMA SINCRO: " + new Date().toLocaleTimeString();
                 }
-            }, (err) => console.error("Sync config error:", err));
+            });
 
-            // Collezione Leaderboard (5 segmenti per la collezione)
+            // Sync Leaderboard
             const pilotsColRef = collection(db, 'artifacts', appId, 'public', 'data', 'leaderboard');
             onSnapshot(pilotsColRef, (snapshot) => {
                 const pilots = [];
                 snapshot.forEach(doc => pilots.push({ id: doc.id, ...doc.data() }));
-
-                // Ordina in memoria (RULE 2)
                 pilots.sort((a, b) => timeToSeconds(a.lapTime) - timeToSeconds(b.lapTime));
-                renderLeaderboard(pilots);
-            }, (err) => console.error("Sync leaderboard error:", err));
-        }
-
-        // SALVATAGGIO DATI (Debounce)
-        let debounceTimer;
-        document.querySelectorAll('.db-input').forEach(input => {
-            input.addEventListener('input', () => {
-                clearTimeout(debounceTimer);
-                debounceTimer = setTimeout(() => saveGlobalData(), 1000);
+                renderLeaderboard(pilots, db, appId);
             });
-        });
 
-        async function saveGlobalData() {
-            if (!currentUser) return;
-            const data = {};
+            // Auto-save setup
+            let debounceTimer;
             document.querySelectorAll('.db-input').forEach(input => {
-                if (input.id && !input.classList.contains('pilot-input')) {
-                    data[input.id] = input.value;
-                }
+                input.addEventListener('input', () => {
+                    clearTimeout(debounceTimer);
+                    debounceTimer = setTimeout(async () => {
+                        const data = {};
+                        document.querySelectorAll('.db-input').forEach(i => {
+                            if (i.id && !i.classList.contains('pilot-input')) data[i.id] = i.value;
+                        });
+                        await setDoc(globalDocRef, data, { merge: true });
+                    }, 1000);
+                });
             });
-            // FIX: Percorso corretto a 6 segmenti
-            const globalDocRef = doc(db, 'artifacts', appId, 'public', 'data', 'config_group', 'global_config');
-            await setDoc(globalDocRef, data, { merge: true });
+
+            // Esponiamo funzioni globali per i bottoni
+            window.addNewPilot = () => addDoc(pilotsColRef, { name: "Pilota", lapTime: "2:00.000", updatedAt: Date.now() });
+            window.updatePilotData = (id, field, value) => updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'leaderboard', id), { [field]: value, updatedAt: Date.now() });
+            window.deletePilot = (id) => deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'leaderboard', id));
         }
 
-        // FUNZIONI LEADERBOARD
-        window.addNewPilot = async () => {
-            if (!currentUser) return;
-            const pilotsColRef = collection(db, 'artifacts', appId, 'public', 'data', 'leaderboard');
-            await addDoc(pilotsColRef, {
-                name: "Pilota",
-                lapTime: "2:00.000",
-                updatedAt: Date.now()
-            });
-        };
-
-        window.updatePilotData = async (id, field, value) => {
-            if (!currentUser) return;
-            const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'leaderboard', id);
-            await updateDoc(docRef, { [field]: value, updatedAt: Date.now() });
-        };
-
-        window.deletePilot = async (id) => {
-            if (!currentUser) return;
-            const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'leaderboard', id);
-            await deleteDoc(docRef);
-        };
-
-        function renderLeaderboard(pilots) {
+        function renderLeaderboard(pilots, db, appId) {
             const tbody = document.getElementById('timingBody');
             tbody.innerHTML = '';
             pilots.forEach((pilot, index) => {
@@ -416,14 +410,14 @@
                     <td class="py-4 px-6 font-racing ${index === 0 ? 'text-red-500' : 'text-gray-500'} font-bold">${index + 1}</td>
                     <td class="py-4 px-6">
                         <input type="text" class="input-minimal font-bold" value="${pilot.name || ''}" 
-                               onchange="updatePilotData('${pilot.id}', 'name', this.value)">
+                               onchange="window.updatePilotData('${pilot.id}', 'name', this.value)">
                     </td>
                     <td class="py-4 px-6 text-right">
                         <input type="text" class="input-minimal text-right font-mono text-lg text-white" value="${pilot.lapTime || ''}" 
-                               onchange="updatePilotData('${pilot.id}', 'lapTime', this.value)">
+                               onchange="window.updatePilotData('${pilot.id}', 'lapTime', this.value)">
                     </td>
                     <td class="py-4 px-6 text-center">
-                        <button onclick="deletePilot('${pilot.id}')" class="text-gray-600 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <button onclick="window.deletePilot('${pilot.id}')" class="text-gray-600 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity">
                             <i class="fa-solid fa-trash"></i>
                         </button>
                     </td>
@@ -439,13 +433,6 @@
             const seconds = parseFloat(parts[1]);
             return isNaN(minutes) || isNaN(seconds) ? 999999 : (minutes * 60) + seconds;
         }
-
-        window.sortAndSave = () => updateLastSave();
-        function updateLastSave() {
-            document.getElementById('last-save-time').textContent = "ULTIMA SINCRO: " + new Date().toLocaleTimeString();
-        }
-
-        window.onload = initAuth;
     </script>
 </body>
 </html>
