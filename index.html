@@ -19,6 +19,21 @@
         .glass { background: rgba(255, 255, 255, 0.05); backdrop-filter: blur(10px); border: 1px solid rgba(255, 255, 255, 0.1); }
         .input-minimal { background: transparent; border: none; border-bottom: 1px solid rgba(255,255,255,0.1); color: white; padding: 2px 4px; outline: none; width: 100%; }
         .input-minimal:focus { border-bottom: 1px solid var(--race-red); }
+        
+        /* Stile specifico per la select */
+        .select-minimal { 
+            background: #2a2a2a; 
+            border: 1px solid rgba(255,255,255,0.1); 
+            color: #ccc; 
+            font-size: 0.75rem; 
+            border-radius: 4px; 
+            padding: 2px 4px;
+            outline: none;
+            cursor: pointer;
+            width: 100%;
+        }
+        .select-minimal:focus { border-color: var(--race-red); color: white; }
+
         .btn-primary { background-color: var(--race-red); transition: all 0.3s ease; }
         .btn-primary:hover { background-color: #ff0800; transform: translateY(-2px); }
         .track-map-container { background: linear-gradient(rgba(0,0,0,0.6), rgba(0,0,0,0.6)), url('https://images.unsplash.com/photo-1511994298241-608e28f14fde?auto=format&fit=crop&q=80&w=1000') center/cover; height: 120px; border-radius: 8px; display: flex; align-items: center; justify-content: center; }
@@ -57,7 +72,7 @@
                     <input type="text" id="track-name" class="db-input bg-transparent text-center font-racing font-bold text-xl text-white outline-none" placeholder="Nome Circuito">
                 </div>
                 <div class="space-y-4">
-                    <div><label class="text-[10px] uppercase text-gray-400">Vettura</label><input type="text" id="current-car" class="db-input input-minimal" placeholder="Ferrari 296 GT3"></div>
+                    <div><label class="text-[10px] uppercase text-gray-400">Vettura Team</label><input type="text" id="current-car" class="db-input input-minimal" placeholder="Ferrari 296 GT3"></div>
                     <div class="grid grid-cols-2 gap-4">
                         <div><label class="text-[10px] uppercase text-gray-400">Meteo</label><input type="text" id="weather" class="db-input input-minimal" placeholder="Sereno"></div>
                         <div><label class="text-[10px] uppercase text-gray-400">Aria</label><input type="text" id="temp-air" class="db-input input-minimal" placeholder="22°C"></div>
@@ -70,11 +85,19 @@
             <section class="card p-6">
                 <div class="flex justify-between items-center mb-6">
                     <h2 class="text-xl font-racing flex items-center gap-2 text-white"><i class="fa-solid fa-stopwatch text-red-600"></i> LIVE TIMING</h2>
-                    <button class="btn-primary text-white px-3 py-2 rounded text-[10px] font-bold uppercase" onclick="addNewPilot()"><i class="fa-solid fa-plus"></i> Aggiungi</button>
+                    <button class="btn-primary text-white px-3 py-2 rounded text-[10px] font-bold uppercase" onclick="addNewPilot()"><i class="fa-solid fa-plus"></i> Aggiungi Pilota</button>
                 </div>
-                <div class="overflow-hidden rounded-lg border border-gray-800">
+                <div class="overflow-x-auto rounded-lg border border-gray-800">
                     <table class="w-full text-left">
-                        <thead class="bg-black/40"><tr class="text-gray-400 text-[10px] uppercase"><th class="py-4 px-6">Pos</th><th class="py-4 px-6">Pilota</th><th class="py-4 px-6 text-right">Tempo</th><th class="py-4 px-6"></th></tr></thead>
+                        <thead class="bg-black/40">
+                            <tr class="text-gray-400 text-[10px] uppercase">
+                                <th class="py-4 px-4">Pos</th>
+                                <th class="py-4 px-4">Pilota</th>
+                                <th class="py-4 px-4">Vettura</th>
+                                <th class="py-4 px-4 text-right">Tempo</th>
+                                <th class="py-4 px-4"></th>
+                            </tr>
+                        </thead>
                         <tbody id="timingBody" class="divide-y divide-gray-800"></tbody>
                     </table>
                 </div>
@@ -82,7 +105,7 @@
 
             <section class="card p-6">
                 <h2 class="text-xl font-racing mb-4 flex items-center gap-2 text-white"><i class="fa-solid fa-clipboard text-red-600"></i> NOTE TEAM</h2>
-                <textarea id="briefing-notes" class="db-input w-full h-32 bg-black/40 border border-gray-700 rounded p-4 text-sm text-white focus:outline-none focus:border-red-600" placeholder="Inserisci note..."></textarea>
+                <textarea id="briefing-notes" class="db-input w-full h-32 bg-black/40 border border-gray-700 rounded p-4 text-sm text-white focus:outline-none focus:border-red-600" placeholder="Inserisci note strategiche o setup..."></textarea>
             </section>
         </div>
     </main>
@@ -103,19 +126,26 @@
             messagingSenderId: "380853834737",
             appId: "1:380853834737:web:85099e91fed8c285426a50"
         };
+
+        const CAR_MODELS = [
+            "Ferrari 296 GT3", "Porsche 911 GT3 R (992)", "BMW M4 GT3", 
+            "Lamborghini Huracan GT3 EVO2", "McLaren 720S GT3 Evo", 
+            "Mercedes-AMG GT3 Evo", "Audi R8 LMS GT3 evo II", 
+            "Aston Martin Vantage AMR GT3 Evo", "Ford Mustang GT3",
+            "Corvette Z06 GT3.R", "Honda NSX GT3 Evo22"
+        ];
         // ==========================================
 
         const loadingStatus = document.getElementById('loading-status');
         const syncStatus = document.getElementById('sync-status');
 
-        // Determina quale config usare - FIX: Corretto errore di sintassi nella condizione
         const isManualConfig = (manualConfig.apiKey && manualConfig.apiKey !== && manualConfig.apiKey !== "");
         const firebaseConfig = isManualConfig ? manualConfig : (typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : null);
         const appId = typeof __app_id !== 'undefined' ? __app_id : 'simracing-team-v1';
 
         if (!firebaseConfig) {
             syncStatus.textContent = "CONFIG MANCANTE";
-            loadingStatus.innerHTML = "<span class='text-red-500 font-bold'>ERRORE DI CONFIGURAZIONE</span><br>Assicurati che i dati in manualConfig siano corretti.";
+            loadingStatus.innerHTML = "<span class='text-red-500 font-bold'>ERRORE DI CONFIGURAZIONE</span>";
         } else {
             try {
                 const app = initializeApp(firebaseConfig);
@@ -125,16 +155,13 @@
                 const startAuth = async () => {
                     try {
                         loadingStatus.textContent = "Connessione sicura in corso...";
-                        
-                        // FIX: Se usiamo manualConfig, forziamo signInAnonymously per evitare token-mismatch
                         if (!isManualConfig && typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
                             await signInWithCustomToken(auth, __initial_auth_token);
                         } else {
                             await signInAnonymously(auth);
                         }
                     } catch (e) {
-                        console.error("Auth error:", e);
-                        loadingStatus.innerHTML = "<span class='text-red-500 font-bold'>ERRORE AUTH</span><br>" + e.message + "<br><br>Verifica di aver abilitato 'Anonymous Auth' nella console Firebase (Authentication > Sign-in method).";
+                        loadingStatus.innerHTML = "Errore Auth: " + e.message;
                     }
                 };
 
@@ -149,7 +176,7 @@
                     }
                 });
             } catch (initErr) {
-                loadingStatus.innerHTML = "<span class='text-red-500 font-bold'>ERRORE CRITICO</span><br>" + initErr.message;
+                loadingStatus.innerHTML = "Errore Critico: " + initErr.message;
             }
         }
 
@@ -165,20 +192,13 @@
                         if (el && document.activeElement !== el) el.value = data[id];
                     });
                 }
-            }, (error) => {
-                console.error("Firestore Config Error:", error);
-                if (error.code === 'permission-denied') {
-                    showErrorMessage("Errore Permessi: Controlla le regole di Firestore.");
-                }
             });
 
             onSnapshot(pilotsColRef, (snap) => {
                 const list = [];
                 snap.forEach(d => list.push({id: d.id, ...d.data()}));
                 list.sort((a, b) => timeToSeconds(a.lapTime) - timeToSeconds(b.lapTime));
-                renderTable(list, db, pilotsColRef);
-            }, (error) => {
-                console.error("Firestore Leaderboard Error:", error);
+                renderTable(list, db, appId);
             });
 
             let timer;
@@ -188,28 +208,51 @@
                     timer = setTimeout(async () => {
                         const data = {};
                         document.querySelectorAll('.db-input').forEach(i => { if(i.id) data[i.id] = i.value; });
-                        try {
-                            await setDoc(configRef, data, { merge: true });
-                        } catch (e) { console.error("Update Error:", e); }
+                        try { await setDoc(configRef, data, { merge: true }); } catch (e) {}
                     }, 500);
                 });
             });
 
-            window.addNewPilot = () => addDoc(pilotsColRef, { name: "Nuovo Pilota", lapTime: "2:00.000" });
+            window.addNewPilot = () => addDoc(pilotsColRef, { 
+                name: "Pilota " + Math.floor(Math.random() * 100), 
+                lapTime: "2:00.000",
+                car: CAR_MODELS[0]
+            });
             window.updatePilot = (id, f, v) => updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'leaderboard', id), {[f]: v});
             window.deletePilot = (id) => deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'leaderboard', id));
         }
 
-        function renderTable(pilots, db, colRef) {
+        function renderTable(pilots, db, appId) {
             const tbody = document.getElementById('timingBody');
             tbody.innerHTML = '';
             pilots.forEach((p, i) => {
                 const tr = document.createElement('tr');
+                
+                // Generazione opzioni per la select delle vetture
+                const carOptions = CAR_MODELS.map(model => 
+                    `<option value="${model}" ${p.car === model ? 'selected' : ''}>${model}</option>`
+                ).join('');
+
                 tr.innerHTML = `
-                    <td class="py-4 px-6 font-racing ${i===0?'text-red-500':'text-gray-500'} font-bold">${i+1}</td>
-                    <td class="py-4 px-6"><input type="text" class="input-minimal font-bold" value="${p.name}" onchange="window.updatePilot('${p.id}', 'name', this.value)"></td>
-                    <td class="py-4 px-6 text-right"><input type="text" class="input-minimal text-right font-mono text-white" value="${p.lapTime}" onchange="window.updatePilot('${p.id}', 'lapTime', this.value)"></td>
-                    <td class="py-4 px-6 text-center"><button onclick="window.deletePilot('${p.id}')" class="text-gray-600 hover:text-red-500"><i class="fa-solid fa-trash"></i></button></td>
+                    <td class="py-4 px-4 font-racing ${i===0?'text-red-500':'text-gray-500'} font-bold">${i+1}</td>
+                    <td class="py-4 px-4">
+                        <input type="text" class="input-minimal font-bold w-full" value="${p.name || ''}" 
+                               onchange="window.updatePilot('${p.id}', 'name', this.value)">
+                    </td>
+                    <td class="py-4 px-4 min-w-[150px]">
+                        <select class="select-minimal" onchange="window.updatePilot('${p.id}', 'car', this.value)">
+                            ${carOptions}
+                        </select>
+                    </td>
+                    <td class="py-4 px-4 text-right">
+                        <input type="text" class="input-minimal text-right font-mono text-white w-full" value="${p.lapTime || '2:00.000'}" 
+                               onchange="window.updatePilot('${p.id}', 'lapTime', this.value)">
+                    </td>
+                    <td class="py-4 px-4 text-center">
+                        <button onclick="window.deletePilot('${p.id}')" class="text-gray-600 hover:text-red-500 transition-colors">
+                            <i class="fa-solid fa-trash-can"></i>
+                        </button>
+                    </td>
                 `;
                 tbody.appendChild(tr);
             });
@@ -219,13 +262,6 @@
             const p = (s || "9:59.999").split(':');
             return p.length < 2 ? 999 : (parseInt(p[0]) * 60) + parseFloat(p[1]);
         }
-
-        function showErrorMessage(msg) {
-            const status = document.getElementById('sync-status');
-            status.textContent = "ERRORE PERMESSI";
-            status.className = "font-bold text-red-500 text-xs uppercase";
-        }
     </script>
 </body>
 </html>
-
