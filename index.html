@@ -114,6 +114,7 @@
         import { getAuth, signInAnonymously, onAuthStateChanged, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, doc, setDoc, onSnapshot, collection, updateDoc, deleteDoc, addDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
+        // CONFIGURAZIONE MANUALE
         const manualConfig = {
             apiKey: "AIzaSyBPgrzB_g7PqEDizHf95VXZLj9s5s-lDIM",
             authDomain: "database-special-event.firebaseapp.com",
@@ -135,13 +136,14 @@
         const loadingBar = document.getElementById('loading-bar');
         const syncStatus = document.getElementById('sync-status');
 
-        const isManualConfig = (manualConfig.apiKey && manualConfig.apiKey !==  && manualConfig.apiKey !== "");
-        const firebaseConfig = isManualConfig ? manualConfig : (typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : null);
+        // Logica robusta per la selezione della config
+        const isManualActive = (manualConfig && manualConfig.apiKey && manualConfig.apiKey !== "");
+        const firebaseConfig = isManualActive ? manualConfig : (typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : null);
         const appId = typeof __app_id !== 'undefined' ? __app_id : 'simracing-team-v1';
 
         if (!firebaseConfig) {
             syncStatus.textContent = "CONFIG MANCANTE";
-            loadingStatus.innerHTML = "<span class='text-red-500 font-bold'>ERRORE: Inserisci le tue chiavi Firebase nel codice!</span>";
+            loadingStatus.innerHTML = "<span class='text-red-500 font-bold'>ERRORE: Configurazione Firebase non trovata.</span>";
         } else {
             try {
                 const app = initializeApp(firebaseConfig);
@@ -152,13 +154,21 @@
                     try {
                         loadingStatus.textContent = "Autenticazione in corso...";
                         loadingBar.style.width = "40%";
-                        if (!isManualConfig && typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                        
+                        // FIX: Se usiamo manualConfig, forziamo Anonymous per evitare custom-token-mismatch
+                        if (!isManualActive && typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
                             await signInWithCustomToken(auth, __initial_auth_token);
                         } else {
                             await signInAnonymously(auth);
                         }
                     } catch (e) {
-                        loadingStatus.innerHTML = "<span class='text-red-500'>Errore Auth: " + e.message + "</span><br>Abilita 'Anonymous Auth' nella console Firebase.";
+                        console.error("Auth error:", e);
+                        // Fallback finale se il custom token fallisce
+                        try {
+                            await signInAnonymously(auth);
+                        } catch(anonErr) {
+                            loadingStatus.innerHTML = "<span class='text-red-500'>Errore Auth: " + e.message + "</span>";
+                        }
                     }
                 };
 
@@ -166,7 +176,7 @@
 
                 onAuthStateChanged(auth, (user) => {
                     if (user) {
-                        loadingStatus.textContent = "Connessione al database...";
+                        loadingStatus.textContent = "Sincronizzazione dati...";
                         loadingBar.style.width = "70%";
                         startSync(db, appId);
                     }
@@ -183,7 +193,11 @@
             // Listener per i dati di configurazione
             onSnapshot(configRef, (snap) => {
                 loadingBar.style.width = "100%";
-                setTimeout(() => { document.getElementById('loading').style.opacity = '0'; setTimeout(()=> document.getElementById('loading').style.display='none', 500); }, 500);
+                setTimeout(() => { 
+                    const overlay = document.getElementById('loading');
+                    overlay.style.opacity = '0'; 
+                    setTimeout(() => overlay.style.display = 'none', 500); 
+                }, 500);
                 
                 syncStatus.textContent = "ONLINE";
                 syncStatus.className = "font-bold text-green-500 text-xs uppercase";
@@ -196,11 +210,13 @@
                     });
                 }
             }, (err) => {
-                console.error("Firestore Error:", err);
-                loadingStatus.innerHTML = "<span class='text-red-500'>Errore Permessi Database</span><br>Controlla le 'Rules' su Firebase Firestore.";
+                console.error("Firestore Config Error:", err);
+                // Rimuoviamo il loading anche in caso di errore permessi per mostrare l'UI
+                document.getElementById('loading').style.display = 'none';
+                syncStatus.textContent = "ERRORE PERMESSI";
             });
 
-            // Listener per la classifica piloti
+            // Listener per la tabella live timing
             onSnapshot(pilotsColRef, (snap) => {
                 const list = [];
                 snap.forEach(d => list.push({id: d.id, ...d.data()}));
@@ -210,7 +226,7 @@
                 console.error("Leaderboard Error:", err);
             });
 
-            // Salvataggio automatico input
+            // Auto-save input
             let timer;
             document.querySelectorAll('.db-input').forEach(input => {
                 input.addEventListener('input', () => {
@@ -271,7 +287,8 @@
         }
 
         function timeToSeconds(s) {
-            const p = (s || "9:59.999").split(':');
+            if (!s || typeof s !== 'string') return 999;
+            const p = s.split(':');
             return p.length < 2 ? 999 : (parseInt(p[0]) * 60) + parseFloat(p[1]);
         }
     </script>
