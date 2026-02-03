@@ -52,7 +52,7 @@
     <main class="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-3 gap-8">
         <div class="space-y-8">
             <section class="card p-6">
-                <h2 class="text-xl font-racing mb-4 flex items-center gap-2 text-white"><i class="fa-solid fa-gear text-red-600"></i> TRACK INFO</h2>
+                <h2 class="text-xl font-racing mb-4 flex items-center gap-2 text-white"><i class="fa-solid fa-gear text-red-600"></i> INFO TRACCIATO</h2>
                 <div class="track-map-container mb-4">
                     <input type="text" id="track-name" class="db-input bg-transparent text-center font-racing font-bold text-xl text-white outline-none" placeholder="Nome Circuito">
                 </div>
@@ -96,27 +96,26 @@
         // CONFIGURAZIONE FIREBASE
         // ==========================================
         const manualConfig = {
-              apiKey: "AIzaSyBPgrzB_g7PqEDizHf95VXZLj9s5s-lDIM",
-  authDomain: "database-special-event.firebaseapp.com",
-  projectId: "database-special-event",
-  storageBucket: "database-special-event.firebasestorage.app",
-  messagingSenderId: "380853834737",
-  appId: "1:380853834737:web:85099e91fed8c285426a50",
-  measurementId: "G-0VZBTGRX32"
-};
+            apiKey: "AIzaSyBPgrzB_g7PqEDizHf95VXZLj9s5s-lDIM",
+            authDomain: "database-special-event.firebaseapp.com",
+            projectId: "database-special-event",
+            storageBucket: "database-special-event.firebasestorage.app",
+            messagingSenderId: "380853834737",
+            appId: "1:380853834737:web:85099e91fed8c285426a50"
+        };
         // ==========================================
 
         const loadingStatus = document.getElementById('loading-status');
         const syncStatus = document.getElementById('sync-status');
 
         // Determina quale config usare
-        const isConfigured = (manualConfig.apiKey !== "AIzaSyBPgrzB_g7PqEDizHf95VXZLj9s5s-lDIM" && manualConfig.apiKey !== "");
-        const firebaseConfig = isConfigured ? manualConfig : (typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : null);
+        const isManualConfig = (manualConfig.apiKey && manualConfig.apiKey !== "INSERISCI_QUI" && manualConfig.apiKey !== "");
+        const firebaseConfig = isManualConfig ? manualConfig : (typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : null);
         const appId = typeof __app_id !== 'undefined' ? __app_id : 'simracing-team-v1';
 
         if (!firebaseConfig) {
             syncStatus.textContent = "CONFIG MANCANTE";
-            loadingStatus.innerHTML = "<span class='text-red-500 font-bold'>ERRORE DI CONFIGURAZIONE</span><br>Sostituisci i valori 'INSERISCI_QUI' alla riga 100 con i tuoi dati Firebase.";
+            loadingStatus.innerHTML = "<span class='text-red-500 font-bold'>ERRORE DI CONFIGURAZIONE</span><br>Assicurati che i dati in manualConfig siano corretti.";
         } else {
             try {
                 const app = initializeApp(firebaseConfig);
@@ -126,14 +125,17 @@
                 const startAuth = async () => {
                     try {
                         loadingStatus.textContent = "Connessione sicura in corso...";
-                        if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                        
+                        // FIX: Se usiamo manualConfig, forziamo signInAnonymously per evitare token-mismatch
+                        // Se usiamo la config dell'ambiente (di sistema), proviamo il custom token se esiste
+                        if (!isManualConfig && typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
                             await signInWithCustomToken(auth, __initial_auth_token);
                         } else {
                             await signInAnonymously(auth);
                         }
                     } catch (e) {
                         console.error("Auth error:", e);
-                        loadingStatus.innerHTML = "<span class='text-red-500 font-bold'>ERRORE AUTH</span><br>" + e.message;
+                        loadingStatus.innerHTML = "<span class='text-red-500 font-bold'>ERRORE AUTH</span><br>" + e.message + "<br><br>Verifica di aver abilitato 'Anonymous Auth' nella console Firebase (Authentication > Sign-in method).";
                     }
                 };
 
