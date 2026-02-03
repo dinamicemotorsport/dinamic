@@ -6,118 +6,35 @@
     <title>SimRacing Team - Live Dashboard</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/font-awesome.min.css" rel="stylesheet">
-    <!-- Firebase SDKs -->
     <script src="https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js" type="module"></script>
     <script src="https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js" type="module"></script>
     <script src="https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js" type="module"></script>
 
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&family=Inter:wght@300;400;600;700&display=swap');
-
-        :root {
-            --race-red: #e10600;
-            --carbon-dark: #121212;
-            --carbon-light: #1e1e1e;
-        }
-
-        body {
-            background-color: var(--carbon-dark);
-            color: #e0e0e0;
-            font-family: 'Inter', sans-serif;
-        }
-
-        .font-racing {
-            font-family: 'Orbitron', sans-serif;
-        }
-
-        .card {
-            background: var(--carbon-light);
-            border-left: 4px solid var(--race-red);
-            border-radius: 8px;
-            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.5);
-        }
-
-        .glass {
-            background: rgba(255, 255, 255, 0.05);
-            backdrop-filter: blur(10px);
-            border: 1px solid rgba(255, 255, 255, 0.1);
-        }
-
-        .input-minimal {
-            background: transparent;
-            border: none;
-            border-bottom: 1px solid rgba(255,255,255,0.1);
-            color: white;
-            padding: 2px 4px;
-            outline: none;
-            width: 100%;
-        }
-
-        .input-minimal:focus {
-            border-bottom: 1px solid var(--race-red);
-        }
-
-        .select-minimal {
-            background: rgba(0,0,0,0.3);
-            border: none;
-            border-bottom: 1px solid rgba(255,255,255,0.1);
-            color: #fff;
-            padding: 4px;
-            outline: none;
-            width: 100%;
-            cursor: pointer;
-            font-size: 10px;
-        }
-
-        .select-minimal option {
-            background-color: var(--carbon-light);
-            color: white;
-        }
-
-        .btn-primary {
-            background-color: var(--race-red);
-            transition: all 0.3s ease;
-        }
-
-        .btn-primary:hover {
-            background-color: #ff0800;
-            transform: translateY(-2px);
-        }
-
-        .track-map-container {
-            background: linear-gradient(rgba(0,0,0,0.6), rgba(0,0,0,0.6)), url('https://images.unsplash.com/photo-1511994298241-608e28f14fde?auto=format&fit=crop&q=80&w=1000') center/cover;
-            height: 120px;
-            border-radius: 8px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-
-        .loading-overlay {
-            position: fixed;
-            inset: 0;
-            background: var(--carbon-dark);
-            z-index: 9999;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            transition: opacity 0.5s ease;
-        }
+        :root { --race-red: #e10600; --carbon-dark: #121212; --carbon-light: #1e1e1e; }
+        body { background-color: var(--carbon-dark); color: #e0e0e0; font-family: 'Inter', sans-serif; }
+        .font-racing { font-family: 'Orbitron', sans-serif; }
+        .card { background: var(--carbon-light); border-left: 4px solid var(--race-red); border-radius: 8px; box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.5); }
+        .glass { background: rgba(255, 255, 255, 0.05); backdrop-filter: blur(10px); border: 1px solid rgba(255, 255, 255, 0.1); }
+        .input-minimal { background: transparent; border: none; border-bottom: 1px solid rgba(255,255,255,0.1); color: white; padding: 2px 4px; outline: none; width: 100%; }
+        .input-minimal:focus { border-bottom: 1px solid var(--race-red); }
+        .btn-primary { background-color: var(--race-red); transition: all 0.3s ease; }
+        .btn-primary:hover { background-color: #ff0800; transform: translateY(-2px); }
+        .track-map-container { background: linear-gradient(rgba(0,0,0,0.6), rgba(0,0,0,0.6)), url('https://images.unsplash.com/photo-1511994298241-608e28f14fde?auto=format&fit=crop&q=80&w=1000') center/cover; height: 120px; border-radius: 8px; display: flex; align-items: center; justify-content: center; }
+        .loading-overlay { position: fixed; inset: 0; background: var(--carbon-dark); z-index: 9999; display: flex; flex-direction: column; align-items: center; justify-content: center; transition: opacity 0.5s ease; }
     </style>
 </head>
 <body class="p-4 md:p-8">
 
     <div id="loading" class="loading-overlay">
-        <div class="text-2xl font-racing animate-pulse mb-4 text-red-600">INIZIALIZZAZIONE...</div>
-        <div id="loading-subtext" class="text-xs text-gray-500 mb-4">Verifica configurazione in corso</div>
-        <div class="w-48 h-1 bg-gray-800 rounded">
+        <div class="text-2xl font-racing animate-pulse mb-4 text-red-600">CONNESSIONE AL TEAM...</div>
+        <div id="loading-status" class="text-xs text-gray-500">Inizializzazione Firebase...</div>
+        <div class="w-48 h-1 bg-gray-800 rounded mt-4">
             <div class="h-full bg-red-600 animate-[loading_2s_infinite]"></div>
         </div>
-        <button id="skip-loading" class="mt-8 text-[10px] text-gray-600 underline hidden" onclick="hideLoading()">Salta caricamento (Modalità Offline)</button>
     </div>
 
-    <!-- Header -->
     <header class="max-w-7xl mx-auto mb-10 flex flex-col md:flex-row justify-between items-center gap-6">
         <div>
             <h1 class="text-4xl font-racing font-bold tracking-tighter text-white">
@@ -125,162 +42,47 @@
             </h1>
         </div>
         <div class="flex gap-4">
-            <div class="glass p-3 rounded-lg text-center min-w-[150px]">
-                <span class="block text-xs uppercase text-gray-400">Il tuo ID Pilota</span>
-                <span id="user-id-display" class="text-[10px] font-mono text-gray-500">Locale</span>
-            </div>
             <div class="glass p-3 rounded-lg text-center min-w-[120px]">
                 <span class="block text-xs uppercase text-gray-400">Database</span>
-                <span id="sync-status" class="font-bold text-gray-500 text-xs uppercase">In attesa</span>
+                <span id="sync-status" class="font-bold text-gray-500 text-xs uppercase italic">Sincronizzazione...</span>
             </div>
         </div>
     </header>
 
     <main class="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-3 gap-8">
-        
-        <!-- Colonna Sinistra -->
         <div class="space-y-8">
             <section class="card p-6">
-                <h2 class="text-xl font-racing mb-4 flex items-center gap-2 text-white">
-                    <i class="fa-solid fa-gear text-red-600"></i> CONFIGURAZIONE
-                </h2>
+                <h2 class="text-xl font-racing mb-4 flex items-center gap-2 text-white"><i class="fa-solid fa-gear text-red-600"></i> TRACK INFO</h2>
                 <div class="track-map-container mb-4">
                     <input type="text" id="track-name" class="db-input bg-transparent text-center font-racing font-bold text-xl text-white outline-none" placeholder="Nome Circuito">
                 </div>
                 <div class="space-y-4">
-                    <div>
-                        <label class="text-[10px] uppercase text-gray-400">Vettura Attuale</label>
-                        <input type="text" id="current-car" class="db-input input-minimal font-semibold" placeholder="Ferrari 296 GT3">
-                    </div>
+                    <div><label class="text-[10px] uppercase text-gray-400">Vettura</label><input type="text" id="current-car" class="db-input input-minimal" placeholder="Ferrari 296 GT3"></div>
                     <div class="grid grid-cols-2 gap-4">
-                        <div>
-                            <label class="text-[10px] uppercase text-gray-400">Meteo</label>
-                            <input type="text" id="weather" class="db-input input-minimal text-sm" placeholder="Sereno">
-                        </div>
-                        <div>
-                            <label class="text-[10px] uppercase text-gray-400">Temp. Aria</label>
-                            <input type="text" id="temp-air" class="db-input input-minimal text-sm" placeholder="22°C">
-                        </div>
-                    </div>
-                </div>
-            </section>
-
-            <section class="card p-6">
-                <h2 class="text-xl font-racing mb-4 flex items-center gap-2 text-white">
-                    <i class="fa-solid fa-bullseye text-red-600"></i> OBIETTIVI
-                </h2>
-                <div class="space-y-4">
-                    <div class="p-3 bg-white/5 rounded border-l-2 border-red-500">
-                        <p class="text-[10px] text-red-500 font-bold uppercase mb-1">Passo Gara Target</p>
-                        <input type="text" id="target-lap" class="db-input bg-transparent font-racing text-xl text-white outline-none w-full" placeholder="2:17.500">
-                    </div>
-                    <div class="p-3 bg-white/5 rounded border-l-2 border-blue-500">
-                        <p class="text-[10px] text-blue-400 font-bold uppercase mb-1">Consumo Target (L/Lap)</p>
-                        <input type="text" id="target-fuel" class="db-input bg-transparent text-sm text-white outline-none w-full" placeholder="3.45 L">
+                        <div><label class="text-[10px] uppercase text-gray-400">Meteo</label><input type="text" id="weather" class="db-input input-minimal" placeholder="Sereno"></div>
+                        <div><label class="text-[10px] uppercase text-gray-400">Aria</label><input type="text" id="temp-air" class="db-input input-minimal" placeholder="22°C"></div>
                     </div>
                 </div>
             </section>
         </div>
 
-        <!-- Colonna Centrale -->
         <div class="lg:col-span-2 space-y-8">
-            
-            <!-- Fasi -->
             <section class="card p-6">
-                <h2 class="text-xl font-racing mb-6 flex items-center gap-2 text-white">
-                    <i class="fa-solid fa-list-check text-red-600"></i> FASI DI ALLENAMENTO
-                </h2>
-                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <div class="glass p-4 rounded-lg relative">
-                        <span class="absolute top-2 right-2 text-[10px] font-bold text-gray-600 italic">STEP 1</span>
-                        <div class="flex items-center gap-3 mb-2">
-                            <div class="w-8 h-8 rounded bg-red-600/20 flex items-center justify-center text-red-500">
-                                <i class="fa-solid fa-car"></i>
-                            </div>
-                            <h3 class="text-xs font-bold uppercase tracking-wider">Scelta Vettura</h3>
-                        </div>
-                        <select id="step1-car" class="db-input select-minimal mb-2">
-                            <option value="" disabled selected>Seleziona GT3...</option>
-                            <option value="BMW M4 GT3 EVO">BMW M4 GT3 EVO</option>
-                            <option value="PORSCHE 911 GT3 R (992)">PORSCHE 911 GT3 R (992)</option>
-                            <option value="FERRARI 296 GT3">FERRARI 296 GT3</option>
-                            <option value="AUDI R8 LMS GT3 EVO">AUDI R8 LMS GT3 EVO</option>
-                            <option value="ASTON MARTIN VANTAGE GT3">ASTON MARTIN VANTAGE GT3</option>
-                            <option value="MCLAREN 720S GT3 EVO">MCLAREN 720S GT3 EVO</option>
-                            <option value="ACURA NSX GT3">ACURA NSX GT3</option>
-                            <option value="MERCEDES AMG GT3 EVO">MERCEDES AMG GT3 EVO</option>
-                            <option value="CORVETTE Z06R GT3">CORVETTE Z06R GT3</option>
-                            <option value="MUSTANG GT3">MUSTANG GT3</option>
-                            <option value="LAMBORGHINI HURACAN GT3 EVO">LAMBORGHINI HURACAN GT3 EVO</option>
-                        </select>
-                    </div>
-                    <div class="glass p-4 rounded-lg border-l-2 border-yellow-500">
-                        <span class="absolute top-2 right-2 text-[10px] font-bold text-gray-600 italic">STEP 2</span>
-                        <div class="flex items-center gap-3 mb-2">
-                            <div class="w-8 h-8 rounded bg-yellow-500/20 flex items-center justify-center text-yellow-500">
-                                <i class="fa-solid fa-road"></i>
-                            </div>
-                            <h3 class="text-xs font-bold uppercase tracking-wider">Passo Gara</h3>
-                        </div>
-                        <input type="text" id="step2-result" class="db-input input-minimal text-[10px]" placeholder="Stint: es. 1:18.2 avg">
-                    </div>
-                    <div class="glass p-4 rounded-lg border-l-2 border-green-500">
-                        <span class="absolute top-2 right-2 text-[10px] font-bold text-gray-600 italic">STEP 3</span>
-                        <div class="flex items-center gap-3 mb-2">
-                            <div class="w-8 h-8 rounded bg-green-500/20 flex items-center justify-center text-green-500">
-                                <i class="fa-solid fa-gas-pump"></i>
-                            </div>
-                            <h3 class="text-xs font-bold uppercase tracking-wider">Consumo</h3>
-                        </div>
-                        <input type="text" id="step3-result" class="db-input input-minimal text-[10px]" placeholder="Consumo: es. 3.2L/lap">
-                    </div>
+                <div class="flex justify-between items-center mb-6">
+                    <h2 class="text-xl font-racing flex items-center gap-2 text-white"><i class="fa-solid fa-stopwatch text-red-600"></i> LIVE TIMING</h2>
+                    <button class="btn-primary text-white px-3 py-2 rounded text-[10px] font-bold uppercase" onclick="addNewPilot()"><i class="fa-solid fa-plus"></i> Aggiungi</button>
                 </div>
-            </section>
-
-            <!-- Leaderboard -->
-            <section class="card p-6">
-                <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
-                    <h2 class="text-xl font-racing flex items-center gap-2 text-white">
-                        <i class="fa-solid fa-stopwatch text-red-600"></i> LIVE TIMING
-                    </h2>
-                    <div class="flex gap-2">
-                        <button class="bg-blue-600 hover:bg-blue-500 text-white px-3 py-2 rounded text-[10px] font-bold uppercase tracking-widest flex items-center gap-2" onclick="sortAndSave()">
-                            <i class="fa-solid fa-sort-amount-down"></i> Forza Riordino
-                        </button>
-                        <button class="btn-primary text-white px-3 py-2 rounded text-[10px] font-bold uppercase tracking-widest flex items-center gap-2" onclick="addNewPilot()">
-                            <i class="fa-solid fa-plus"></i> Nuovo Pilota
-                        </button>
-                    </div>
-                </div>
-
                 <div class="overflow-hidden rounded-lg border border-gray-800">
                     <table class="w-full text-left">
-                        <thead class="bg-black/40">
-                            <tr class="text-gray-400 text-[10px] uppercase">
-                                <th class="py-4 px-6 w-16">Pos</th>
-                                <th class="py-4 px-6">Pilota</th>
-                                <th class="py-4 px-6 text-right">Miglior Giro</th>
-                                <th class="py-4 px-6 text-center w-10"></th>
-                            </tr>
-                        </thead>
-                        <tbody id="timingBody" class="divide-y divide-gray-800">
-                            <!-- Dati sincronizzati -->
-                        </tbody>
+                        <thead class="bg-black/40"><tr class="text-gray-400 text-[10px] uppercase"><th class="py-4 px-6">Pos</th><th class="py-4 px-6">Pilota</th><th class="py-4 px-6 text-right">Tempo</th><th class="py-4 px-6"></th></tr></thead>
+                        <tbody id="timingBody" class="divide-y divide-gray-800"></tbody>
                     </table>
                 </div>
             </section>
 
-            <!-- Briefing -->
             <section class="card p-6">
-                <h2 class="text-xl font-racing mb-4 flex items-center gap-2 text-white">
-                    <i class="fa-solid fa-clipboard text-red-600"></i> BRIEFING & NOTE TEAM
-                </h2>
-                <div class="space-y-4">
-                    <textarea id="briefing-notes" class="db-input w-full h-32 bg-black/40 border border-gray-700 rounded p-4 text-sm focus:outline-none focus:border-red-600 transition-colors text-white" placeholder="Scrivi qui le note per il team..."></textarea>
-                    <div class="text-right">
-                        <span id="last-save-time" class="text-[9px] text-gray-500 uppercase tracking-widest">Nessuna sincronizzazione attiva</span>
-                    </div>
-                </div>
+                <h2 class="text-xl font-racing mb-4 flex items-center gap-2 text-white"><i class="fa-solid fa-clipboard text-red-600"></i> NOTE TEAM</h2>
+                <textarea id="briefing-notes" class="db-input w-full h-32 bg-black/40 border border-gray-700 rounded p-4 text-sm text-white focus:outline-none focus:border-red-600" placeholder="Inserisci note..."></textarea>
             </section>
         </div>
     </main>
@@ -288,150 +90,121 @@
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, signInAnonymously, onAuthStateChanged, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, doc, setDoc, onSnapshot, collection, query, updateDoc, deleteDoc, addDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getFirestore, doc, setDoc, onSnapshot, collection, updateDoc, deleteDoc, addDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-        // GESTIONE CONFIGURAZIONE MANCANTE (Per GitHub)
-        let firebaseConfig = null;
-        let appId = 'default-simracing-app';
+        // Configurazione Firebase
+        const manualConfig = null; 
 
-        try {
-            if (typeof __firebase_config !== 'undefined') {
-                firebaseConfig = JSON.parse(__firebase_config);
-            }
-            if (typeof __app_id !== 'undefined') {
-                appId = __app_id;
-            }
-        } catch (e) {
-            console.warn("Configurazione Firebase non trovata nell'ambiente.");
-        }
+        const firebaseConfig = manualConfig || (typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : null);
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'simracing-team-v1';
 
-        // Funzione per nascondere il loading manualmente
-        window.hideLoading = () => {
-            const loader = document.getElementById('loading');
-            if (loader) {
-                loader.style.opacity = '0';
-                setTimeout(() => loader.style.display = 'none', 500);
-            }
-        };
-
-        // Se non c'è configurazione, sblocchiamo comunque la pagina dopo 3 secondi
         if (!firebaseConfig) {
-            document.getElementById('loading-subtext').textContent = "Configurazione cloud non rilevata. Uso modalità locale.";
-            document.getElementById('skip-loading').classList.remove('hidden');
-            setTimeout(window.hideLoading, 3000);
+            document.getElementById('sync-status').textContent = "CONFIG MANCANTE";
+            document.getElementById('loading-status').textContent = "Errore: Inserisci le chiavi Firebase nel codice.";
         } else {
-            // Se c'è configurazione, procediamo normalmente
             const app = initializeApp(firebaseConfig);
             const auth = getAuth(app);
             const db = getFirestore(app);
-            let currentUser = null;
 
-            async function initAuth() {
+            const startAuth = async () => {
                 try {
+                    document.getElementById('loading-status').textContent = "Autenticazione in corso...";
                     if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
                         await signInWithCustomToken(auth, __initial_auth_token);
                     } else {
                         await signInAnonymously(auth);
                     }
-                    
-                    onAuthStateChanged(auth, (user) => {
-                        if (user) {
-                            currentUser = user;
-                            document.getElementById('user-id-display').textContent = user.uid.substring(0, 12) + '...';
-                            document.getElementById('sync-status').textContent = "ONLINE";
-                            document.getElementById('sync-status').className = "font-bold text-green-500 text-xs uppercase";
-                            window.hideLoading();
-                            startSync(db, appId, user);
-                        }
-                    });
-                } catch (error) {
-                    console.error("Errore Firebase:", error);
-                    document.getElementById('sync-status').textContent = "OFFLINE";
-                    window.hideLoading();
+                } catch (e) {
+                    console.error("Auth error:", e);
+                    document.getElementById('loading-status').textContent = "Errore Autenticazione: " + e.message;
                 }
-            }
+            };
 
-            initAuth();
+            startAuth();
+
+            onAuthStateChanged(auth, (user) => {
+                if (user) {
+                    document.getElementById('sync-status').textContent = "ONLINE";
+                    document.getElementById('sync-status').className = "font-bold text-green-500 text-xs uppercase";
+                    document.getElementById('loading').style.display = 'none';
+                    startSync(db, appId);
+                }
+            });
         }
 
-        function startSync(db, appId, user) {
-            // Sync Global Config
-            const globalDocRef = doc(db, 'artifacts', appId, 'public', 'data', 'config_group', 'global_config');
-            onSnapshot(globalDocRef, (snapshot) => {
-                if (snapshot.exists()) {
-                    const data = snapshot.data();
-                    Object.keys(data).forEach(key => {
-                        const el = document.getElementById(key);
-                        if (el && document.activeElement !== el) {
-                            el.value = data[key];
-                        }
+        function startSync(db, appId) {
+            // FIX: Corretto il percorso del documento aggiungendo un segmento finale (id: 'default') per avere un numero pari di segmenti
+            const configRef = doc(db, 'artifacts', appId, 'public', 'data', 'config', 'default');
+            const pilotsColRef = collection(db, 'artifacts', appId, 'public', 'data', 'leaderboard');
+
+            onSnapshot(configRef, (snap) => {
+                if (snap.exists()) {
+                    const data = snap.data();
+                    Object.keys(data).forEach(id => {
+                        const el = document.getElementById(id);
+                        if (el && document.activeElement !== el) el.value = data[id];
                     });
-                    document.getElementById('last-save-time').textContent = "ULTIMA SINCRO: " + new Date().toLocaleTimeString();
+                }
+            }, (error) => {
+                console.error("Firestore Config Error:", error);
+                if (error.code === 'permission-denied') {
+                    showErrorMessage("Errore Permessi: Controlla le regole di Firestore.");
                 }
             });
 
-            // Sync Leaderboard
-            const pilotsColRef = collection(db, 'artifacts', appId, 'public', 'data', 'leaderboard');
-            onSnapshot(pilotsColRef, (snapshot) => {
-                const pilots = [];
-                snapshot.forEach(doc => pilots.push({ id: doc.id, ...doc.data() }));
-                pilots.sort((a, b) => timeToSeconds(a.lapTime) - timeToSeconds(b.lapTime));
-                renderLeaderboard(pilots, db, appId);
+            onSnapshot(pilotsColRef, (snap) => {
+                const list = [];
+                snap.forEach(d => list.push({id: d.id, ...d.data()}));
+                list.sort((a, b) => timeToSeconds(a.lapTime) - timeToSeconds(b.lapTime));
+                renderTable(list, db, pilotsColRef);
+            }, (error) => {
+                console.error("Firestore Leaderboard Error:", error);
             });
 
-            // Auto-save setup
-            let debounceTimer;
+            let timer;
             document.querySelectorAll('.db-input').forEach(input => {
                 input.addEventListener('input', () => {
-                    clearTimeout(debounceTimer);
-                    debounceTimer = setTimeout(async () => {
+                    clearTimeout(timer);
+                    timer = setTimeout(async () => {
                         const data = {};
-                        document.querySelectorAll('.db-input').forEach(i => {
-                            if (i.id && !i.classList.contains('pilot-input')) data[i.id] = i.value;
-                        });
-                        await setDoc(globalDocRef, data, { merge: true });
-                    }, 1000);
+                        document.querySelectorAll('.db-input').forEach(i => { if(i.id) data[i.id] = i.value; });
+                        try {
+                            await setDoc(configRef, data, { merge: true });
+                        } catch (e) { console.error("Update Error:", e); }
+                    }, 500);
                 });
             });
 
-            // Esponiamo funzioni globali per i bottoni
-            window.addNewPilot = () => addDoc(pilotsColRef, { name: "Pilota", lapTime: "2:00.000", updatedAt: Date.now() });
-            window.updatePilotData = (id, field, value) => updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'leaderboard', id), { [field]: value, updatedAt: Date.now() });
+            window.addNewPilot = () => addDoc(pilotsColRef, { name: "Nuovo Pilota", lapTime: "2:00.000" });
+            window.updatePilot = (id, f, v) => updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'leaderboard', id), {[f]: v});
             window.deletePilot = (id) => deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'leaderboard', id));
         }
 
-        function renderLeaderboard(pilots, db, appId) {
+        function renderTable(pilots, db, colRef) {
             const tbody = document.getElementById('timingBody');
             tbody.innerHTML = '';
-            pilots.forEach((pilot, index) => {
+            pilots.forEach((p, i) => {
                 const tr = document.createElement('tr');
-                tr.className = "hover:bg-white/5 transition-colors group";
                 tr.innerHTML = `
-                    <td class="py-4 px-6 font-racing ${index === 0 ? 'text-red-500' : 'text-gray-500'} font-bold">${index + 1}</td>
-                    <td class="py-4 px-6">
-                        <input type="text" class="input-minimal font-bold" value="${pilot.name || ''}" 
-                               onchange="window.updatePilotData('${pilot.id}', 'name', this.value)">
-                    </td>
-                    <td class="py-4 px-6 text-right">
-                        <input type="text" class="input-minimal text-right font-mono text-lg text-white" value="${pilot.lapTime || ''}" 
-                               onchange="window.updatePilotData('${pilot.id}', 'lapTime', this.value)">
-                    </td>
-                    <td class="py-4 px-6 text-center">
-                        <button onclick="window.deletePilot('${pilot.id}')" class="text-gray-600 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity">
-                            <i class="fa-solid fa-trash"></i>
-                        </button>
-                    </td>
+                    <td class="py-4 px-6 font-racing ${i===0?'text-red-500':'text-gray-500'} font-bold">${i+1}</td>
+                    <td class="py-4 px-6"><input type="text" class="input-minimal font-bold" value="${p.name}" onchange="window.updatePilot('${p.id}', 'name', this.value)"></td>
+                    <td class="py-4 px-6 text-right"><input type="text" class="input-minimal text-right font-mono text-white" value="${p.lapTime}" onchange="window.updatePilot('${p.id}', 'lapTime', this.value)"></td>
+                    <td class="py-4 px-6 text-center"><button onclick="window.deletePilot('${p.id}')" class="text-gray-600 hover:text-red-500"><i class="fa-solid fa-trash"></i></button></td>
                 `;
                 tbody.appendChild(tr);
             });
         }
 
-        function timeToSeconds(timeStr) {
-            if (!timeStr || !timeStr.includes(':')) return 999999;
-            const parts = timeStr.split(':');
-            const minutes = parseInt(parts[0]);
-            const seconds = parseFloat(parts[1]);
-            return isNaN(minutes) || isNaN(seconds) ? 999999 : (minutes * 60) + seconds;
+        function timeToSeconds(s) {
+            const p = (s || "9:59.999").split(':');
+            return p.length < 2 ? 999 : (parseInt(p[0]) * 60) + parseFloat(p[1]);
+        }
+
+        function showErrorMessage(msg) {
+            const status = document.getElementById('sync-status');
+            status.textContent = "ERRORE PERMESSI";
+            status.className = "font-bold text-red-500 text-xs uppercase";
+            console.error(msg);
         }
     </script>
 </body>
