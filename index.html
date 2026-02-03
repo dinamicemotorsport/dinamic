@@ -92,15 +92,25 @@
         import { getAuth, signInAnonymously, onAuthStateChanged, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, doc, setDoc, onSnapshot, collection, updateDoc, deleteDoc, addDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-        // Configurazione Firebase
-        const manualConfig = null; 
+        // ==========================================
+        // 1. INCOLLA LE TUE CHIAVI FIREBASE QUI SOTTO
+        // ==========================================
+        const manualConfig = {
+            apiKey: "AIzaSyBPgrzB_g7PqEDizHf95VXZLj9s5s-lDIM",
+            authDomain: "database-special-event.firebaseapp.com",
+            projectId: "database-special-event",
+            storageBucket: "database-special-event.firebasestorage.app",
+            messagingSenderId: "380853834737",
+            appId: "1:380853834737:web:85099e91fed8c285426a50",
+        }; 
+        // ==========================================
 
-        const firebaseConfig = manualConfig || (typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : null);
+        const firebaseConfig = (manualConfig.apiKey !== "INSERISCI_QUI") ? manualConfig : (typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : null);
         const appId = typeof __app_id !== 'undefined' ? __app_id : 'simracing-team-v1';
 
         if (!firebaseConfig) {
             document.getElementById('sync-status').textContent = "CONFIG MANCANTE";
-            document.getElementById('loading-status').textContent = "Errore: Inserisci le chiavi Firebase nel codice.";
+            document.getElementById('loading-status').textContent = "Errore: Inserisci le tue chiavi Firebase nel codice (riga 100).";
         } else {
             const app = initializeApp(firebaseConfig);
             const auth = getAuth(app);
@@ -133,7 +143,6 @@
         }
 
         function startSync(db, appId) {
-            // FIX: Corretto il percorso del documento aggiungendo un segmento finale (id: 'default') per avere un numero pari di segmenti
             const configRef = doc(db, 'artifacts', appId, 'public', 'data', 'config', 'default');
             const pilotsColRef = collection(db, 'artifacts', appId, 'public', 'data', 'leaderboard');
 
