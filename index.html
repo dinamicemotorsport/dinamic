@@ -108,8 +108,8 @@
         const loadingStatus = document.getElementById('loading-status');
         const syncStatus = document.getElementById('sync-status');
 
-        // Determina quale config usare
-        const isManualConfig = (manualConfig.apiKey && manualConfig.apiKey !== && manualConfig.apiKey !== "");
+        // Determina quale config usare - FIX: Corretto errore di sintassi nella condizione
+        const isManualConfig = (manualConfig.apiKey && manualConfig.apiKey !== "INSERISCI_QUI" && manualConfig.apiKey !== "");
         const firebaseConfig = isManualConfig ? manualConfig : (typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : null);
         const appId = typeof __app_id !== 'undefined' ? __app_id : 'simracing-team-v1';
 
@@ -127,7 +127,6 @@
                         loadingStatus.textContent = "Connessione sicura in corso...";
                         
                         // FIX: Se usiamo manualConfig, forziamo signInAnonymously per evitare token-mismatch
-                        // Se usiamo la config dell'ambiente (di sistema), proviamo il custom token se esiste
                         if (!isManualConfig && typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
                             await signInWithCustomToken(auth, __initial_auth_token);
                         } else {
@@ -229,5 +228,3 @@
     </script>
 </body>
 </html>
-
-
