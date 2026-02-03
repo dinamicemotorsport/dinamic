@@ -109,7 +109,7 @@
         const syncStatus = document.getElementById('sync-status');
 
         // Determina quale config usare
-        const isManualConfig = (manualConfig.apiKey && manualConfig.apiKey !== "INSERISCI_QUI" && manualConfig.apiKey !== "");
+        const isManualConfig = (manualConfig.apiKey && manualConfig.apiKey !== && manualConfig.apiKey !== "");
         const firebaseConfig = isManualConfig ? manualConfig : (typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : null);
         const appId = typeof __app_id !== 'undefined' ? __app_id : 'simracing-team-v1';
 
@@ -229,4 +229,5 @@
     </script>
 </body>
 </html>
+
 
