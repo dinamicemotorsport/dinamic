@@ -237,10 +237,14 @@
                 hideLoading();
             });
 
+            // Gestione Sincronizzazione Piloti con Ordinamento per Best Lap
             onSnapshot(pilotsColRef, (snap) => {
                 const list = [];
                 snap.forEach(d => list.push({id: d.id, ...d.data()}));
+                
+                // Ordinamento dinamico per Best Lap (tempo minore = posizione migliore)
                 list.sort((a, b) => timeToSeconds(a.lapTime) - timeToSeconds(b.lapTime));
+                
                 renderTable(list, db, appId);
             }, (err) => {
                 console.error("Leaderboard Error:", err);
@@ -313,10 +317,16 @@
             });
         }
 
+        // Helper per convertire stringa tempo (M:SS.ms) in secondi per il sorting
         function timeToSeconds(s) {
-            if (!s || typeof s !== 'string') return 999;
-            const p = s.split(':');
-            return p.length < 2 ? 999 : (parseInt(p[0]) * 60) + parseFloat(p[1]);
+            if (!s || typeof s !== 'string') return 9999;
+            try {
+                const parts = s.split(':');
+                if (parts.length < 2) return parseFloat(parts[0]) || 9999;
+                return (parseInt(parts[0]) * 60) + parseFloat(parts[1]);
+            } catch(e) {
+                return 9999;
+            }
         }
     </script>
 </body>
