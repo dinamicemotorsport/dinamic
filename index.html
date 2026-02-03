@@ -47,6 +47,7 @@
         <div class="w-48 h-1 bg-gray-800 rounded mt-4 overflow-hidden">
             <div id="loading-bar" class="h-full bg-red-600 transition-all duration-500" style="width: 10%"></div>
         </div>
+        <button id="bypass-loading" class="mt-8 text-[10px] text-gray-600 underline hidden" onclick="hideLoading()">Sblocca interfaccia manualmente</button>
     </div>
 
     <header class="max-w-7xl mx-auto mb-10 flex flex-col md:flex-row justify-between items-center gap-6">
@@ -136,7 +137,21 @@
         const loadingBar = document.getElementById('loading-bar');
         const syncStatus = document.getElementById('sync-status');
 
-        // Logica robusta per la selezione della config
+        window.hideLoading = () => {
+            const overlay = document.getElementById('loading');
+            overlay.style.opacity = '0'; 
+            setTimeout(() => overlay.style.display = 'none', 500);
+        };
+
+        // Timeout di sicurezza: se dopo 5 secondi è ancora bloccato, sblocca
+        setTimeout(() => {
+            const loading = document.getElementById('loading');
+            if (loading && loading.style.display !== 'none') {
+                document.getElementById('bypass-loading').classList.remove('hidden');
+                loadingStatus.textContent = "Connessione lenta o dati mancanti...";
+            }
+        }, 5000);
+
         const isManualActive = (manualConfig && manualConfig.apiKey && manualConfig.apiKey !== "");
         const firebaseConfig = isManualActive ? manualConfig : (typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : null);
         const appId = typeof __app_id !== 'undefined' ? __app_id : 'simracing-team-v1';
@@ -144,6 +159,7 @@
         if (!firebaseConfig) {
             syncStatus.textContent = "CONFIG MANCANTE";
             loadingStatus.innerHTML = "<span class='text-red-500 font-bold'>ERRORE: Configurazione Firebase non trovata.</span>";
+            hideLoading();
         } else {
             try {
                 const app = initializeApp(firebaseConfig);
@@ -155,7 +171,6 @@
                         loadingStatus.textContent = "Autenticazione in corso...";
                         loadingBar.style.width = "40%";
                         
-                        // FIX: Se usiamo manualConfig, forziamo Anonymous per evitare custom-token-mismatch
                         if (!isManualActive && typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
                             await signInWithCustomToken(auth, __initial_auth_token);
                         } else {
@@ -163,11 +178,11 @@
                         }
                     } catch (e) {
                         console.error("Auth error:", e);
-                        // Fallback finale se il custom token fallisce
                         try {
                             await signInAnonymously(auth);
                         } catch(anonErr) {
                             loadingStatus.innerHTML = "<span class='text-red-500'>Errore Auth: " + e.message + "</span>";
+                            hideLoading();
                         }
                     }
                 };
@@ -183,6 +198,7 @@
                 });
             } catch (initErr) {
                 loadingStatus.innerHTML = "<span class='text-red-500'>Errore Inizializzazione: " + initErr.message + "</span>";
+                hideLoading();
             }
         }
 
@@ -193,11 +209,7 @@
             // Listener per i dati di configurazione
             onSnapshot(configRef, (snap) => {
                 loadingBar.style.width = "100%";
-                setTimeout(() => { 
-                    const overlay = document.getElementById('loading');
-                    overlay.style.opacity = '0'; 
-                    setTimeout(() => overlay.style.display = 'none', 500); 
-                }, 500);
+                hideLoading();
                 
                 syncStatus.textContent = "ONLINE";
                 syncStatus.className = "font-bold text-green-500 text-xs uppercase";
@@ -211,9 +223,8 @@
                 }
             }, (err) => {
                 console.error("Firestore Config Error:", err);
-                // Rimuoviamo il loading anche in caso di errore permessi per mostrare l'UI
-                document.getElementById('loading').style.display = 'none';
-                syncStatus.textContent = "ERRORE PERMESSI";
+                hideLoading();
+                syncStatus.textContent = "ERRORE CONNESSIONE";
             });
 
             // Listener per la tabella live timing
