@@ -64,8 +64,9 @@
         </div>
     </header>
 
-    <main class="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-3 gap-8">
-        <div class="space-y-8">
+    <main class="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-4 gap-8">
+        <!-- Sidebar Info -->
+        <div class="lg:col-span-1 space-y-8">
             <section class="card p-6">
                 <h2 class="text-xl font-racing mb-4 flex items-center gap-2 text-white"><i class="fa-solid fa-gear text-red-600"></i> INFO TRACCIATO</h2>
                 <div class="track-map-container mb-4">
@@ -79,33 +80,36 @@
                     </div>
                 </div>
             </section>
+            
+            <section class="card p-6">
+                <h2 class="text-xl font-racing mb-4 flex items-center gap-2 text-white"><i class="fa-solid fa-clipboard text-red-600"></i> NOTE TEAM</h2>
+                <textarea id="briefing-notes" class="db-input w-full h-48 bg-black/40 border border-gray-700 rounded p-4 text-sm text-white focus:outline-none focus:border-red-600" placeholder="Inserisci note strategiche o setup..."></textarea>
+            </section>
         </div>
 
-        <div class="lg:col-span-2 space-y-8">
+        <!-- Main Live Timing Content -->
+        <div class="lg:col-span-3 space-y-8">
             <section class="card p-6">
                 <div class="flex justify-between items-center mb-6">
-                    <h2 class="text-xl font-racing flex items-center gap-2 text-white"><i class="fa-solid fa-stopwatch text-red-600"></i> LIVE TIMING</h2>
+                    <h2 class="text-xl font-racing flex items-center gap-2 text-white"><i class="fa-solid fa-stopwatch text-red-600"></i> LIVE TIMING & TELEMETRY</h2>
                     <button class="btn-primary text-white px-3 py-2 rounded text-[10px] font-bold uppercase" onclick="addNewPilot()"><i class="fa-solid fa-plus"></i> Aggiungi Pilota</button>
                 </div>
                 <div class="overflow-x-auto rounded-lg border border-gray-800">
                     <table class="w-full text-left">
                         <thead class="bg-black/40">
-                            <tr class="text-gray-400 text-[10px] uppercase">
-                                <th class="py-4 px-4">Pos</th>
+                            <tr class="text-gray-400 text-[9px] md:text-[10px] uppercase">
+                                <th class="py-4 px-4 w-12">Pos</th>
                                 <th class="py-4 px-4">Pilota</th>
                                 <th class="py-4 px-4">Vettura</th>
-                                <th class="py-4 px-4 text-right">Tempo</th>
-                                <th class="py-4 px-4"></th>
+                                <th class="py-4 px-4 text-right">Best Lap</th>
+                                <th class="py-4 px-4 text-right">Passo Gara</th>
+                                <th class="py-4 px-4 text-right">L/Lap</th>
+                                <th class="py-4 px-4 w-10"></th>
                             </tr>
                         </thead>
                         <tbody id="timingBody" class="divide-y divide-gray-800"></tbody>
                     </table>
                 </div>
-            </section>
-
-            <section class="card p-6">
-                <h2 class="text-xl font-racing mb-4 flex items-center gap-2 text-white"><i class="fa-solid fa-clipboard text-red-600"></i> NOTE TEAM</h2>
-                <textarea id="briefing-notes" class="db-input w-full h-32 bg-black/40 border border-gray-700 rounded p-4 text-sm text-white focus:outline-none focus:border-red-600" placeholder="Inserisci note strategiche o setup..."></textarea>
             </section>
         </div>
     </main>
@@ -143,12 +147,11 @@
             setTimeout(() => overlay.style.display = 'none', 500);
         };
 
-        // Timeout di sicurezza: se dopo 5 secondi è ancora bloccato, sblocca
         setTimeout(() => {
             const loading = document.getElementById('loading');
             if (loading && loading.style.display !== 'none') {
                 document.getElementById('bypass-loading').classList.remove('hidden');
-                loadingStatus.textContent = "Connessione lenta o dati mancanti...";
+                loadingStatus.textContent = "Sincronizzazione in corso...";
             }
         }, 5000);
 
@@ -168,7 +171,7 @@
 
                 const startAuth = async () => {
                     try {
-                        loadingStatus.textContent = "Autenticazione in corso...";
+                        loadingStatus.textContent = "Autenticazione...";
                         loadingBar.style.width = "40%";
                         
                         if (!isManualActive && typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
@@ -181,7 +184,7 @@
                         try {
                             await signInAnonymously(auth);
                         } catch(anonErr) {
-                            loadingStatus.innerHTML = "<span class='text-red-500'>Errore Auth: " + e.message + "</span>";
+                            loadingStatus.innerHTML = "<span class='text-red-500'>Errore: " + e.message + "</span>";
                             hideLoading();
                         }
                     }
@@ -191,13 +194,13 @@
 
                 onAuthStateChanged(auth, (user) => {
                     if (user) {
-                        loadingStatus.textContent = "Sincronizzazione dati...";
+                        loadingStatus.textContent = "Caricamento database...";
                         loadingBar.style.width = "70%";
                         startSync(db, appId);
                     }
                 });
             } catch (initErr) {
-                loadingStatus.innerHTML = "<span class='text-red-500'>Errore Inizializzazione: " + initErr.message + "</span>";
+                loadingStatus.innerHTML = "<span class='text-red-500'>Errore Init: " + initErr.message + "</span>";
                 hideLoading();
             }
         }
@@ -206,12 +209,11 @@
             const configRef = doc(db, 'artifacts', appId, 'public', 'data', 'config', 'default');
             const pilotsColRef = collection(db, 'artifacts', appId, 'public', 'data', 'leaderboard');
 
-            // Listener per i dati di configurazione
             onSnapshot(configRef, (snap) => {
                 loadingBar.style.width = "100%";
                 hideLoading();
                 
-                syncStatus.textContent = "ONLINE";
+                syncStatus.textContent = "LIVE";
                 syncStatus.className = "font-bold text-green-500 text-xs uppercase";
 
                 if (snap.exists()) {
@@ -224,10 +226,8 @@
             }, (err) => {
                 console.error("Firestore Config Error:", err);
                 hideLoading();
-                syncStatus.textContent = "ERRORE CONNESSIONE";
             });
 
-            // Listener per la tabella live timing
             onSnapshot(pilotsColRef, (snap) => {
                 const list = [];
                 snap.forEach(d => list.push({id: d.id, ...d.data()}));
@@ -237,7 +237,6 @@
                 console.error("Leaderboard Error:", err);
             });
 
-            // Auto-save input
             let timer;
             document.querySelectorAll('.db-input').forEach(input => {
                 input.addEventListener('input', () => {
@@ -247,9 +246,7 @@
                         document.querySelectorAll('.db-input').forEach(i => { if(i.id) data[i.id] = i.value; });
                         try { 
                             await setDoc(configRef, data, { merge: true }); 
-                        } catch (e) {
-                            console.error("Save Error:", e);
-                        }
+                        } catch (e) { console.error("Save Error:", e); }
                     }, 500);
                 });
             });
@@ -257,6 +254,8 @@
             window.addNewPilot = () => addDoc(pilotsColRef, { 
                 name: "Nuovo Pilota", 
                 lapTime: "2:00.000",
+                racePace: "2:01.500",
+                fuelPerLap: "3.20",
                 car: CAR_MODELS[0]
             });
             window.updatePilot = (id, f, v) => updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'leaderboard', id), {[f]: v});
@@ -274,7 +273,7 @@
 
                 tr.innerHTML = `
                     <td class="py-4 px-4 font-racing ${i===0?'text-red-500':'text-gray-500'} font-bold">${i+1}</td>
-                    <td class="py-4 px-4">
+                    <td class="py-4 px-4 min-w-[120px]">
                         <input type="text" class="input-minimal font-bold w-full" value="${p.name || ''}" 
                                onchange="window.updatePilot('${p.id}', 'name', this.value)">
                     </td>
@@ -287,9 +286,17 @@
                         <input type="text" class="input-minimal text-right font-mono text-white w-full" value="${p.lapTime || '2:00.000'}" 
                                onchange="window.updatePilot('${p.id}', 'lapTime', this.value)">
                     </td>
+                    <td class="py-4 px-4 text-right">
+                        <input type="text" class="input-minimal text-right font-mono text-red-400 w-full" value="${p.racePace || '2:01.500'}" 
+                               onchange="window.updatePilot('${p.id}', 'racePace', this.value)">
+                    </td>
+                    <td class="py-4 px-4 text-right">
+                        <input type="text" class="input-minimal text-right font-mono text-blue-400 w-full" value="${p.fuelPerLap || '3.20'}" 
+                               onchange="window.updatePilot('${p.id}', 'fuelPerLap', this.value)">
+                    </td>
                     <td class="py-4 px-4 text-center">
                         <button onclick="window.deletePilot('${p.id}')" class="text-gray-600 hover:text-red-500 transition-colors">
-                            <i class="fa-solid fa-trash-can"></i>
+                            <i class="fa-solid fa-trash-can text-xs"></i>
                         </button>
                     </td>
                 `;
