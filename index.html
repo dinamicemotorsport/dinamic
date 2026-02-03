@@ -20,7 +20,6 @@
         .input-minimal { background: transparent; border: none; border-bottom: 1px solid rgba(255,255,255,0.1); color: white; padding: 2px 4px; outline: none; width: 100%; }
         .input-minimal:focus { border-bottom: 1px solid var(--race-red); }
         
-        /* Stile specifico per la select */
         .select-minimal { 
             background: #2a2a2a; 
             border: 1px solid rgba(255,255,255,0.1); 
@@ -44,9 +43,9 @@
 
     <div id="loading" class="loading-overlay">
         <div class="text-2xl font-racing animate-pulse mb-4 text-red-600">CONNESSIONE AL TEAM...</div>
-        <div id="loading-status" class="text-xs text-gray-500 text-center px-4">In attesa dei dati Firebase...</div>
-        <div class="w-48 h-1 bg-gray-800 rounded mt-4">
-            <div class="h-full bg-red-600 animate-[loading_2s_infinite]"></div>
+        <div id="loading-status" class="text-xs text-gray-500 text-center px-4 italic">Inizializzazione Firebase...</div>
+        <div class="w-48 h-1 bg-gray-800 rounded mt-4 overflow-hidden">
+            <div id="loading-bar" class="h-full bg-red-600 transition-all duration-500" style="width: 10%"></div>
         </div>
     </div>
 
@@ -59,7 +58,7 @@
         <div class="flex gap-4">
             <div class="glass p-3 rounded-lg text-center min-w-[120px]">
                 <span class="block text-xs uppercase text-gray-400">Database</span>
-                <span id="sync-status" class="font-bold text-gray-500 text-xs uppercase italic">Sincronizzazione...</span>
+                <span id="sync-status" class="font-bold text-gray-500 text-xs uppercase italic">Offline</span>
             </div>
         </div>
     </header>
@@ -115,9 +114,6 @@
         import { getAuth, signInAnonymously, onAuthStateChanged, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, doc, setDoc, onSnapshot, collection, updateDoc, deleteDoc, addDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-        // ==========================================
-        // CONFIGURAZIONE FIREBASE
-        // ==========================================
         const manualConfig = {
             apiKey: "AIzaSyBPgrzB_g7PqEDizHf95VXZLj9s5s-lDIM",
             authDomain: "database-special-event.firebaseapp.com",
@@ -134,18 +130,18 @@
             "Aston Martin Vantage AMR GT3 Evo", "Ford Mustang GT3",
             "Corvette Z06 GT3.R", "Honda NSX GT3 Evo22"
         ];
-        // ==========================================
 
         const loadingStatus = document.getElementById('loading-status');
+        const loadingBar = document.getElementById('loading-bar');
         const syncStatus = document.getElementById('sync-status');
 
-        const isManualConfig = (manualConfig.apiKey && manualConfig.apiKey !== && manualConfig.apiKey !== "");
+        const isManualConfig = (manualConfig.apiKey && manualConfig.apiKey !==  && manualConfig.apiKey !== "");
         const firebaseConfig = isManualConfig ? manualConfig : (typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : null);
         const appId = typeof __app_id !== 'undefined' ? __app_id : 'simracing-team-v1';
 
         if (!firebaseConfig) {
             syncStatus.textContent = "CONFIG MANCANTE";
-            loadingStatus.innerHTML = "<span class='text-red-500 font-bold'>ERRORE DI CONFIGURAZIONE</span>";
+            loadingStatus.innerHTML = "<span class='text-red-500 font-bold'>ERRORE: Inserisci le tue chiavi Firebase nel codice!</span>";
         } else {
             try {
                 const app = initializeApp(firebaseConfig);
@@ -154,14 +150,15 @@
 
                 const startAuth = async () => {
                     try {
-                        loadingStatus.textContent = "Connessione sicura in corso...";
+                        loadingStatus.textContent = "Autenticazione in corso...";
+                        loadingBar.style.width = "40%";
                         if (!isManualConfig && typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
                             await signInWithCustomToken(auth, __initial_auth_token);
                         } else {
                             await signInAnonymously(auth);
                         }
                     } catch (e) {
-                        loadingStatus.innerHTML = "Errore Auth: " + e.message;
+                        loadingStatus.innerHTML = "<span class='text-red-500'>Errore Auth: " + e.message + "</span><br>Abilita 'Anonymous Auth' nella console Firebase.";
                     }
                 };
 
@@ -169,14 +166,13 @@
 
                 onAuthStateChanged(auth, (user) => {
                     if (user) {
-                        syncStatus.textContent = "ONLINE";
-                        syncStatus.className = "font-bold text-green-500 text-xs uppercase";
-                        document.getElementById('loading').style.display = 'none';
+                        loadingStatus.textContent = "Connessione al database...";
+                        loadingBar.style.width = "70%";
                         startSync(db, appId);
                     }
                 });
             } catch (initErr) {
-                loadingStatus.innerHTML = "Errore Critico: " + initErr.message;
+                loadingStatus.innerHTML = "<span class='text-red-500'>Errore Inizializzazione: " + initErr.message + "</span>";
             }
         }
 
@@ -184,7 +180,14 @@
             const configRef = doc(db, 'artifacts', appId, 'public', 'data', 'config', 'default');
             const pilotsColRef = collection(db, 'artifacts', appId, 'public', 'data', 'leaderboard');
 
+            // Listener per i dati di configurazione
             onSnapshot(configRef, (snap) => {
+                loadingBar.style.width = "100%";
+                setTimeout(() => { document.getElementById('loading').style.opacity = '0'; setTimeout(()=> document.getElementById('loading').style.display='none', 500); }, 500);
+                
+                syncStatus.textContent = "ONLINE";
+                syncStatus.className = "font-bold text-green-500 text-xs uppercase";
+
                 if (snap.exists()) {
                     const data = snap.data();
                     Object.keys(data).forEach(id => {
@@ -192,15 +195,22 @@
                         if (el && document.activeElement !== el) el.value = data[id];
                     });
                 }
+            }, (err) => {
+                console.error("Firestore Error:", err);
+                loadingStatus.innerHTML = "<span class='text-red-500'>Errore Permessi Database</span><br>Controlla le 'Rules' su Firebase Firestore.";
             });
 
+            // Listener per la classifica piloti
             onSnapshot(pilotsColRef, (snap) => {
                 const list = [];
                 snap.forEach(d => list.push({id: d.id, ...d.data()}));
                 list.sort((a, b) => timeToSeconds(a.lapTime) - timeToSeconds(b.lapTime));
                 renderTable(list, db, appId);
+            }, (err) => {
+                console.error("Leaderboard Error:", err);
             });
 
+            // Salvataggio automatico input
             let timer;
             document.querySelectorAll('.db-input').forEach(input => {
                 input.addEventListener('input', () => {
@@ -208,13 +218,17 @@
                     timer = setTimeout(async () => {
                         const data = {};
                         document.querySelectorAll('.db-input').forEach(i => { if(i.id) data[i.id] = i.value; });
-                        try { await setDoc(configRef, data, { merge: true }); } catch (e) {}
+                        try { 
+                            await setDoc(configRef, data, { merge: true }); 
+                        } catch (e) {
+                            console.error("Save Error:", e);
+                        }
                     }, 500);
                 });
             });
 
             window.addNewPilot = () => addDoc(pilotsColRef, { 
-                name: "Pilota " + Math.floor(Math.random() * 100), 
+                name: "Nuovo Pilota", 
                 lapTime: "2:00.000",
                 car: CAR_MODELS[0]
             });
@@ -227,8 +241,6 @@
             tbody.innerHTML = '';
             pilots.forEach((p, i) => {
                 const tr = document.createElement('tr');
-                
-                // Generazione opzioni per la select delle vetture
                 const carOptions = CAR_MODELS.map(model => 
                     `<option value="${model}" ${p.car === model ? 'selected' : ''}>${model}</option>`
                 ).join('');
