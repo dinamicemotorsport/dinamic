@@ -93,12 +93,13 @@
             <section class="card p-6">
                 <h2 class="text-xl font-racing mb-4 flex items-center gap-2 text-white"><i class="fa-solid fa-clipboard text-red-600"></i> NOTE TEAM</h2>
                 <div class="mb-4">
-                    <label class="text-[10px] uppercase text-gray-400 block mb-1">Riferimento Pilota</label>
-                    <select id="note-pilot-ref" class="db-input select-minimal">
+                    <label class="text-[10px] uppercase text-gray-400 block mb-1">Seleziona Pilota per Note</label>
+                    <select id="note-pilot-ref" class="select-minimal">
                         <option value="Team General">Team General</option>
                     </select>
                 </div>
-                <textarea id="briefing-notes" class="db-input w-full h-48 bg-black/40 border border-gray-700 rounded p-4 text-sm text-white focus:outline-none focus:border-red-600" placeholder="Inserisci note strategiche o setup..."></textarea>
+                <textarea id="briefing-notes" class="w-full h-48 bg-black/40 border border-gray-700 rounded p-4 text-sm text-white focus:outline-none focus:border-red-600" placeholder="Seleziona un pilota per visualizzare o modificare le sue note..."></textarea>
+                <div id="save-indicator" class="text-[9px] text-gray-500 mt-2 text-right italic uppercase">Sincronizzato</div>
             </section>
         </div>
 
@@ -132,7 +133,7 @@
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, signInAnonymously, onAuthStateChanged, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, doc, setDoc, onSnapshot, collection, updateDoc, deleteDoc, addDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getFirestore, doc, setDoc, onSnapshot, collection, updateDoc, deleteDoc, addDoc, getDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
         // CONFIGURAZIONE MANUALE
         const manualConfig = {
@@ -156,6 +157,10 @@
         const loadingBar = document.getElementById('loading-bar');
         const syncStatus = document.getElementById('sync-status');
         const notePilotRef = document.getElementById('note-pilot-ref');
+        const briefingNotes = document.getElementById('briefing-notes');
+        const saveIndicator = document.getElementById('save-indicator');
+
+        let allNotes = {}; // Memorizza localmente l'oggetto note ricevuto dal DB
 
         window.hideLoading = () => {
             const overlay = document.getElementById('loading');
@@ -163,112 +168,100 @@
             setTimeout(() => overlay.style.display = 'none', 500);
         };
 
-        setTimeout(() => {
-            const loading = document.getElementById('loading');
-            if (loading && loading.style.display !== 'none') {
-                document.getElementById('bypass-loading').classList.remove('hidden');
-                loadingStatus.textContent = "Sincronizzazione in corso...";
-            }
-        }, 5000);
-
-        const isManualActive = (manualConfig && manualConfig.apiKey && manualConfig.apiKey !== "");
-        const firebaseConfig = isManualActive ? manualConfig : (typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : null);
+        const firebaseConfig = manualConfig;
         const appId = typeof __app_id !== 'undefined' ? __app_id : 'simracing-team-v1';
 
-        if (!firebaseConfig) {
-            syncStatus.textContent = "CONFIG MANCANTE";
-            loadingStatus.innerHTML = "<span class='text-red-500 font-bold'>ERRORE: Configurazione Firebase non trovata.</span>";
-            hideLoading();
-        } else {
-            try {
-                const app = initializeApp(firebaseConfig);
-                const auth = getAuth(app);
-                const db = getFirestore(app);
+        try {
+            const app = initializeApp(firebaseConfig);
+            const auth = getAuth(app);
+            const db = getFirestore(app);
 
-                const startAuth = async () => {
-                    try {
-                        loadingStatus.textContent = "Autenticazione...";
-                        loadingBar.style.width = "40%";
-                        
-                        if (!isManualActive && typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-                            await signInWithCustomToken(auth, __initial_auth_token);
-                        } else {
-                            await signInAnonymously(auth);
-                        }
-                    } catch (e) {
-                        console.error("Auth error:", e);
-                        try {
-                            await signInAnonymously(auth);
-                        } catch(anonErr) {
-                            loadingStatus.innerHTML = "<span class='text-red-500'>Errore: " + e.message + "</span>";
-                            hideLoading();
-                        }
-                    }
-                };
-
-                startAuth();
-
-                onAuthStateChanged(auth, (user) => {
-                    if (user) {
-                        loadingStatus.textContent = "Caricamento database...";
-                        loadingBar.style.width = "70%";
-                        startSync(db, appId);
-                    }
-                });
-            } catch (initErr) {
-                loadingStatus.innerHTML = "<span class='text-red-500'>Errore Init: " + initErr.message + "</span>";
-                hideLoading();
-            }
-        }
+            onAuthStateChanged(auth, (user) => {
+                if (user) {
+                    startSync(db, appId);
+                } else {
+                    signInAnonymously(auth);
+                }
+            });
+        } catch (e) { console.error(e); }
 
         function startSync(db, appId) {
             const configRef = doc(db, 'artifacts', appId, 'public', 'data', 'config', 'default');
             const pilotsColRef = collection(db, 'artifacts', appId, 'public', 'data', 'leaderboard');
 
-            // Sincronizzazione Config e Note
+            // Sincronizzazione Config e Note Dinamiche
             onSnapshot(configRef, (snap) => {
-                loadingBar.style.width = "100%";
                 hideLoading();
-                
                 syncStatus.textContent = "LIVE";
                 syncStatus.className = "font-bold text-green-500 text-xs uppercase";
 
                 if (snap.exists()) {
                     const data = snap.data();
+                    
+                    // Sincronizza input statici (meteo, pista, etc)
                     Object.keys(data).forEach(id => {
                         const el = document.getElementById(id);
-                        if (el && document.activeElement !== el) el.value = data[id];
+                        if (el && id !== 'briefing-notes' && document.activeElement !== el) {
+                            el.value = data[id];
+                        }
                     });
+
+                    // Gestione Note Piloti separate
+                    if (data.pilotNotes) {
+                        allNotes = data.pilotNotes;
+                        // Aggiorna l'area di testo basandosi sul pilota attualmente selezionato
+                        const currentPilot = notePilotRef.value;
+                        if (document.activeElement !== briefingNotes) {
+                            briefingNotes.value = allNotes[currentPilot] || "";
+                        }
+                    }
                 }
-            }, (err) => {
-                console.error("Firestore Config Error:", err);
-                hideLoading();
             });
 
-            // Sincronizzazione Piloti (Leaderboard + Aggiornamento Tendina Note)
+            // Sincronizzazione Piloti (per tendina Note e Tabella)
             onSnapshot(pilotsColRef, (snap) => {
                 const list = [];
                 snap.forEach(d => list.push({id: d.id, ...d.data()}));
-                
-                // Ordinamento dinamico per Best Lap
                 list.sort((a, b) => timeToSeconds(a.lapTime) - timeToSeconds(b.lapTime));
                 
-                // Aggiorna menu a tendina nel pannello note
                 updateNotePilotSelect(list);
-                
                 renderTable(list, db, appId);
-            }, (err) => {
-                console.error("Leaderboard Error:", err);
             });
 
-            // Salvataggio automatico input pannello sinistro (Track Info + Note)
-            let timer;
+            // Listener cambio pilota nel menu note
+            notePilotRef.addEventListener('change', () => {
+                briefingNotes.value = allNotes[notePilotRef.value] || "";
+            });
+
+            // Listener salvataggio note specifiche
+            let noteTimer;
+            briefingNotes.addEventListener('input', () => {
+                saveIndicator.textContent = "Salvataggio...";
+                clearTimeout(noteTimer);
+                noteTimer = setTimeout(async () => {
+                    const currentPilot = notePilotRef.value;
+                    allNotes[currentPilot] = briefingNotes.value;
+                    
+                    try {
+                        await setDoc(configRef, { pilotNotes: allNotes }, { merge: true });
+                        saveIndicator.textContent = "Sincronizzato";
+                    } catch (e) {
+                        saveIndicator.textContent = "Errore salvataggio";
+                    }
+                }, 1000);
+            });
+
+            // Salvataggio altri input statici
+            let staticTimer;
             document.querySelectorAll('.db-input').forEach(input => {
-                input.addEventListener('input', () => saveConfig(configRef));
-                // Aggiungiamo listener specifico per i select del pannello config
-                if (input.tagName === 'SELECT') {
-                    input.addEventListener('change', () => saveConfig(configRef));
-                }
+                input.addEventListener('input', () => {
+                    clearTimeout(staticTimer);
+                    staticTimer = setTimeout(async () => {
+                        const data = {};
+                        document.querySelectorAll('.db-input').forEach(i => { if(i.id) data[i.id] = i.value; });
+                        await setDoc(configRef, data, { merge: true });
+                    }, 500);
+                });
             });
 
             window.addNewPilot = () => addDoc(pilotsColRef, { 
@@ -282,35 +275,18 @@
             window.deletePilot = (id) => deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'leaderboard', id));
         }
 
-        let saveTimer;
-        function saveConfig(ref) {
-            clearTimeout(saveTimer);
-            saveTimer = setTimeout(async () => {
-                const data = {};
-                document.querySelectorAll('.db-input').forEach(i => { 
-                    if(i.id && !i.closest('table')) data[i.id] = i.value; 
-                });
-                try { 
-                    await setDoc(ref, data, { merge: true }); 
-                } catch (e) { console.error("Save Error:", e); }
-            }, 500);
-        }
-
-        // Funzione per popolare la tendina dei piloti nel pannello Note
         function updateNotePilotSelect(pilots) {
-            const currentValue = notePilotRef.value;
-            // Teniamo sempre l'opzione Team General
+            const currentSelected = notePilotRef.value;
             let html = '<option value="Team General">Team General</option>';
-            
             pilots.forEach(p => {
                 const name = p.name || "Senza nome";
                 html += `<option value="${name}">${name}</option>`;
             });
-            
             notePilotRef.innerHTML = html;
-            // Ripristina il valore selezionato se esiste ancora
-            if (Array.from(notePilotRef.options).some(opt => opt.value === currentValue)) {
-                notePilotRef.value = currentValue;
+            
+            // Ripristina la selezione se il pilota esiste ancora
+            if (Array.from(notePilotRef.options).some(o => o.value === currentSelected)) {
+                notePilotRef.value = currentSelected;
             }
         }
 
@@ -358,13 +334,8 @@
 
         function timeToSeconds(s) {
             if (!s || typeof s !== 'string') return 9999;
-            try {
-                const parts = s.split(':');
-                if (parts.length < 2) return parseFloat(parts[0]) || 9999;
-                return (parseInt(parts[0]) * 60) + parseFloat(parts[1]);
-            } catch(e) {
-                return 9999;
-            }
+            const parts = s.split(':');
+            return parts.length < 2 ? (parseFloat(parts[0]) || 9999) : (parseInt(parts[0]) * 60) + parseFloat(parts[1]);
         }
     </script>
 </body>
