@@ -37,6 +37,11 @@
         .btn-primary:hover { background-color: #ff0800; transform: translateY(-2px); }
         .track-map-container { background: linear-gradient(rgba(0,0,0,0.6), rgba(0,0,0,0.6)), url('https://images.unsplash.com/photo-1511994298241-608e28f14fde?auto=format&fit=crop&q=80&w=1000') center/cover; height: 120px; border-radius: 8px; display: flex; align-items: center; justify-content: center; }
         .loading-overlay { position: fixed; inset: 0; background: var(--carbon-dark); z-index: 9999; display: flex; flex-direction: column; align-items: center; justify-content: center; transition: opacity 0.5s ease; }
+        
+        /* Custom scrollbar for notes */
+        .notes-container::-webkit-scrollbar { width: 4px; }
+        .notes-container::-webkit-scrollbar-track { background: rgba(0,0,0,0.2); }
+        .notes-container::-webkit-scrollbar-thumb { background: var(--race-red); border-radius: 10px; }
     </style>
 </head>
 <body class="p-4 md:p-8">
@@ -90,15 +95,12 @@
                 </div>
             </section>
             
-            <section class="card p-6">
+            <section class="card p-6 flex flex-col h-[600px]">
                 <h2 class="text-xl font-racing mb-4 flex items-center gap-2 text-white"><i class="fa-solid fa-clipboard text-red-600"></i> NOTE TEAM</h2>
-                <div class="mb-4">
-                    <label class="text-[10px] uppercase text-gray-400 block mb-1">Seleziona Pilota per Note</label>
-                    <select id="note-pilot-ref" class="select-minimal">
-                        <option value="Team General">Team General</option>
-                    </select>
+                <div id="notes-list" class="notes-container space-y-4 overflow-y-auto flex-1 pr-2">
+                    <!-- Le note verranno generate qui dinamicamente -->
+                    <div class="text-xs text-gray-500 italic">Caricamento note...</div>
                 </div>
-                <textarea id="briefing-notes" class="w-full h-48 bg-black/40 border border-gray-700 rounded p-4 text-sm text-white focus:outline-none focus:border-red-600" placeholder="Seleziona un pilota per visualizzare o modificare le sue note..."></textarea>
                 <div id="save-indicator" class="text-[9px] text-gray-500 mt-2 text-right italic uppercase">Sincronizzato</div>
             </section>
         </div>
@@ -156,11 +158,11 @@
         const loadingStatus = document.getElementById('loading-status');
         const loadingBar = document.getElementById('loading-bar');
         const syncStatus = document.getElementById('sync-status');
-        const notePilotRef = document.getElementById('note-pilot-ref');
-        const briefingNotes = document.getElementById('briefing-notes');
+        const notesList = document.getElementById('notes-list');
         const saveIndicator = document.getElementById('save-indicator');
 
-        let allNotes = {}; // Memorizza localmente l'oggetto note ricevuto dal DB
+        let allNotes = {}; 
+        let currentPilots = [];
 
         window.hideLoading = () => {
             const overlay = document.getElementById('loading');
@@ -189,7 +191,7 @@
             const configRef = doc(db, 'artifacts', appId, 'public', 'data', 'config', 'default');
             const pilotsColRef = collection(db, 'artifacts', appId, 'public', 'data', 'leaderboard');
 
-            // Sincronizzazione Config e Note Dinamiche
+            // Sincronizzazione Config e Note
             onSnapshot(configRef, (snap) => {
                 hideLoading();
                 syncStatus.textContent = "LIVE";
@@ -198,7 +200,7 @@
                 if (snap.exists()) {
                     const data = snap.data();
                     
-                    // Sincronizza input statici (meteo, pista, etc)
+                    // Input statici (track info)
                     Object.keys(data).forEach(id => {
                         const el = document.getElementById(id);
                         if (el && id !== 'briefing-notes' && document.activeElement !== el) {
@@ -206,49 +208,23 @@
                         }
                     });
 
-                    // Gestione Note Piloti separate
+                    // Gestione Note
                     if (data.pilotNotes) {
                         allNotes = data.pilotNotes;
-                        // Aggiorna l'area di testo basandosi sul pilota attualmente selezionato
-                        const currentPilot = notePilotRef.value;
-                        if (document.activeElement !== briefingNotes) {
-                            briefingNotes.value = allNotes[currentPilot] || "";
-                        }
+                        renderNotes(db, configRef);
                     }
                 }
             });
 
-            // Sincronizzazione Piloti (per tendina Note e Tabella)
+            // Sincronizzazione Piloti
             onSnapshot(pilotsColRef, (snap) => {
                 const list = [];
                 snap.forEach(d => list.push({id: d.id, ...d.data()}));
                 list.sort((a, b) => timeToSeconds(a.lapTime) - timeToSeconds(b.lapTime));
                 
-                updateNotePilotSelect(list);
+                currentPilots = list;
+                renderNotes(db, configRef);
                 renderTable(list, db, appId);
-            });
-
-            // Listener cambio pilota nel menu note
-            notePilotRef.addEventListener('change', () => {
-                briefingNotes.value = allNotes[notePilotRef.value] || "";
-            });
-
-            // Listener salvataggio note specifiche
-            let noteTimer;
-            briefingNotes.addEventListener('input', () => {
-                saveIndicator.textContent = "Salvataggio...";
-                clearTimeout(noteTimer);
-                noteTimer = setTimeout(async () => {
-                    const currentPilot = notePilotRef.value;
-                    allNotes[currentPilot] = briefingNotes.value;
-                    
-                    try {
-                        await setDoc(configRef, { pilotNotes: allNotes }, { merge: true });
-                        saveIndicator.textContent = "Sincronizzato";
-                    } catch (e) {
-                        saveIndicator.textContent = "Errore salvataggio";
-                    }
-                }, 1000);
             });
 
             // Salvataggio altri input statici
@@ -275,19 +251,64 @@
             window.deletePilot = (id) => deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'leaderboard', id));
         }
 
-        function updateNotePilotSelect(pilots) {
-            const currentSelected = notePilotRef.value;
-            let html = '<option value="Team General">Team General</option>';
-            pilots.forEach(p => {
-                const name = p.name || "Senza nome";
-                html += `<option value="${name}">${name}</option>`;
-            });
-            notePilotRef.innerHTML = html;
+        // Renderizza tutti i campi note contemporaneamente
+        function renderNotes(db, configRef) {
+            // Se non ci sono piloti e allNotes è vuoto, mostriamo solo Team General
+            const pilotNames = ["Team General", ...currentPilots.map(p => p.name || "Senza nome")];
             
-            // Ripristina la selezione se il pilota esiste ancora
-            if (Array.from(notePilotRef.options).some(o => o.value === currentSelected)) {
-                notePilotRef.value = currentSelected;
-            }
+            // Per evitare di resettare il cursore mentre si scrive, aggiorniamo solo se necessario
+            // O creiamo i campi se non esistono
+            pilotNames.forEach(name => {
+                const safeId = "note-" + btoa(name).replace(/=/g, "");
+                let container = document.getElementById(safeId);
+                
+                if (!container) {
+                    container = document.createElement('div');
+                    container.id = safeId;
+                    container.className = "space-y-1";
+                    container.innerHTML = `
+                        <label class="text-[9px] uppercase text-red-500 font-bold tracking-wider">${name}</label>
+                        <textarea class="w-full h-24 bg-black/40 border border-gray-700 rounded p-2 text-xs text-white focus:outline-none focus:border-red-600 transition-colors" 
+                                  placeholder="Note per ${name}..."></textarea>
+                    `;
+                    notesList.appendChild(container);
+
+                    const textarea = container.querySelector('textarea');
+                    textarea.value = allNotes[name] || "";
+
+                    // Listener salvataggio specifico per questo pilota
+                    let noteTimer;
+                    textarea.addEventListener('input', () => {
+                        saveIndicator.textContent = "Salvataggio...";
+                        clearTimeout(noteTimer);
+                        noteTimer = setTimeout(async () => {
+                            allNotes[name] = textarea.value;
+                            try {
+                                await setDoc(configRef, { pilotNotes: allNotes }, { merge: true });
+                                saveIndicator.textContent = "Sincronizzato";
+                            } catch (e) {
+                                saveIndicator.textContent = "Errore";
+                            }
+                        }, 800);
+                    });
+                } else {
+                    // Aggiorna valore solo se l'utente non sta scrivendo in QUESTO campo
+                    const textarea = container.querySelector('textarea');
+                    if (document.activeElement !== textarea) {
+                        textarea.value = allNotes[name] || "";
+                    }
+                    // Aggiorna l'etichetta se il nome è cambiato (per i piloti in tabella)
+                    container.querySelector('label').textContent = name;
+                }
+            });
+
+            // Rimuovi container di piloti eliminati
+            const existingIds = pilotNames.map(name => "note-" + btoa(name).replace(/=/g, ""));
+            Array.from(notesList.children).forEach(child => {
+                if (child.id && !existingIds.includes(child.id)) {
+                    child.remove();
+                }
+            });
         }
 
         function renderTable(pilots, db, appId) {
