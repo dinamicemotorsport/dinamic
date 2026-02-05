@@ -69,6 +69,9 @@
             left: 50%;
             transform: translate(-50%, -50%);
         }
+
+        .legend-item { display: flex; align-items: center; gap: 8px; font-size: 0.75rem; color: #999; margin-bottom: 4px; }
+        .legend-badge { background: #2a2a2a; color: var(--race-red); padding: 2px 6px; border-radius: 4px; font-weight: bold; font-family: 'Orbitron', sans-serif; min-width: 24px; text-align: center; }
     </style>
 </head>
 <body class="p-4 md:p-8">
@@ -182,7 +185,7 @@
                 </button>
             </div>
             
-            <div id="teams-container" class="grid grid-cols-1 xl:grid-cols-2 gap-8">
+            <div id="teams-container" class="grid grid-cols-1 gap-8">
                 <!-- I pannelli dei team verranno generati qui -->
             </div>
         </div>
@@ -269,7 +272,7 @@
             };
 
             window.addNewTeam = () => {
-                addDoc(crewCol, { teamName: "Nuovo Team", pilots: [{name: "Pilota 1", seq: 1, roles: {q:false, s:false, d:true}}] });
+                addDoc(crewCol, { teamName: "Nuovo Team", pilots: [] });
             };
 
             window.updatePilot = (id, col, field, val) => {
@@ -327,69 +330,96 @@
             
             teams.forEach(team => {
                 const teamCard = document.createElement('div');
-                teamCard.className = "card p-6 flex flex-col gap-6";
+                teamCard.className = "card p-6 grid grid-cols-1 md:grid-cols-4 gap-6";
                 
                 const sortedPilots = [...(team.pilots || [])].sort((a,b) => a.seq - b.seq);
 
                 teamCard.innerHTML = `
-                    <div class="flex justify-between items-start border-b border-gray-800 pb-4">
-                        <div class="flex-1">
-                            <label class="text-[10px] uppercase text-red-500 font-bold tracking-widest">Nome Team</label>
-                            <input type="text" class="text-2xl font-racing bg-transparent outline-none w-full" value="${team.teamName}" onchange="window.updateTeamName('${team.id}', this.value)">
+                    <div class="md:col-span-3 space-y-6">
+                        <div class="flex justify-between items-start border-b border-gray-800 pb-4">
+                            <div class="flex-1">
+                                <label class="text-[10px] uppercase text-red-500 font-bold tracking-widest">Team Profile</label>
+                                <input type="text" class="text-2xl font-racing bg-transparent outline-none w-full text-white" value="${team.teamName}" onchange="window.updateTeamName('${team.id}', this.value)">
+                            </div>
+                            <button onclick="deletePilot('${team.id}', 'race_crew')" class="text-gray-600 hover:text-red-500 p-2"><i class="fa-solid fa-trash"></i></button>
                         </div>
-                        <button onclick="deletePilot('${team.id}', 'race_crew')" class="text-gray-600 hover:text-red-500 p-2"><i class="fa-solid fa-trash"></i></button>
-                    </div>
 
-                    <div class="overflow-x-auto">
-                        <table class="w-full text-left text-xs">
-                            <thead>
-                                <tr class="text-gray-500 uppercase text-[9px]">
-                                    <th class="pb-3 w-12 text-center">Stint</th>
-                                    <th class="pb-3">Pilota</th>
-                                    <th class="pb-3 text-center w-12">Q</th>
-                                    <th class="pb-3 text-center w-12">S</th>
-                                    <th class="pb-3 text-center w-12">D</th>
-                                    <th class="pb-3 w-8"></th>
-                                </tr>
-                            </thead>
-                            <tbody class="divide-y divide-gray-800/50">
-                                ${sortedPilots.map((p, idx) => `
-                                    <tr>
-                                        <td class="py-3 px-1">
-                                            <input type="number" class="w-10 bg-black/40 border border-gray-800 rounded text-center py-1 text-red-500" value="${p.seq}" onchange="window.updatePilotInTeam('${team.id}', ${idx}, 'seq', this.value)">
-                                        </td>
-                                        <td class="py-3 px-1">
-                                            <input type="text" class="input-minimal font-bold" value="${p.name}" onchange="window.updatePilotInTeam('${team.id}', ${idx}, 'name', this.value)">
-                                        </td>
-                                        <td class="py-3 px-1 text-center">
-                                            <input type="checkbox" class="checkbox-custom" ${p.roles?.q ? 'checked' : ''} onchange="window.updateRoleInTeam('${team.id}', ${idx}, 'q', this.checked)">
-                                        </td>
-                                        <td class="py-3 px-1 text-center">
-                                            <input type="checkbox" class="checkbox-custom" ${p.roles?.s ? 'checked' : ''} onchange="window.updateRoleInTeam('${team.id}', ${idx}, 's', this.checked)">
-                                        </td>
-                                        <td class="py-3 px-1 text-center">
-                                            <input type="checkbox" class="checkbox-custom" ${p.roles?.d ? 'checked' : ''} onchange="window.updateRoleInTeam('${team.id}', ${idx}, 'd', this.checked)">
-                                        </td>
-                                        <td class="py-3 px-1 text-right">
-                                            <button onclick="window.removePilotFromTeam('${team.id}', ${idx})" class="text-gray-700 hover:text-red-500"><i class="fa-solid fa-xmark"></i></button>
-                                        </td>
+                        <div class="overflow-x-auto">
+                            <table class="w-full text-left text-xs">
+                                <thead>
+                                    <tr class="text-gray-500 uppercase text-[9px]">
+                                        <th class="pb-3 w-12 text-center">Stint</th>
+                                        <th class="pb-3">Pilota</th>
+                                        <th class="pb-3 text-center w-12">Q</th>
+                                        <th class="pb-3 text-center w-12">S</th>
+                                        <th class="pb-3 text-center w-12">D</th>
+                                        <th class="pb-3 w-8"></th>
                                     </tr>
-                                `).join('')}
-                            </tbody>
-                        </table>
+                                </thead>
+                                <tbody class="divide-y divide-gray-800/50">
+                                    ${sortedPilots.map((p, idx) => `
+                                        <tr>
+                                            <td class="py-3 px-1">
+                                                <input type="number" class="w-10 bg-black/40 border border-gray-800 rounded text-center py-1 text-red-500" value="${p.seq}" onchange="window.updatePilotInTeam('${team.id}', ${idx}, 'seq', this.value)">
+                                            </td>
+                                            <td class="py-3 px-1">
+                                                <input type="text" class="input-minimal font-bold" value="${p.name}" onchange="window.updatePilotInTeam('${team.id}', ${idx}, 'name', this.value)">
+                                            </td>
+                                            <td class="py-3 px-1 text-center">
+                                                <input type="checkbox" class="checkbox-custom" ${p.roles?.q ? 'checked' : ''} onchange="window.updateRoleInTeam('${team.id}', ${idx}, 'q', this.checked)">
+                                            </td>
+                                            <td class="py-3 px-1 text-center">
+                                                <input type="checkbox" class="checkbox-custom" ${p.roles?.s ? 'checked' : ''} onchange="window.updateRoleInTeam('${team.id}', ${idx}, 's', this.checked)">
+                                            </td>
+                                            <td class="py-3 px-1 text-center">
+                                                <input type="checkbox" class="checkbox-custom" ${p.roles?.d ? 'checked' : ''} onchange="window.updateRoleInTeam('${team.id}', ${idx}, 'd', this.checked)">
+                                            </td>
+                                            <td class="py-3 px-1 text-right">
+                                                <button onclick="window.removePilotFromTeam('${team.id}', ${idx})" class="text-gray-700 hover:text-red-500"><i class="fa-solid fa-xmark"></i></button>
+                                            </td>
+                                        </tr>
+                                    `).join('')}
+                                </tbody>
+                            </table>
+                        </div>
+
+                        <button onclick="window.addPilotToTeam('${team.id}')" class="w-full py-3 border-2 border-dashed border-gray-800 text-gray-500 hover:border-red-600 hover:text-red-600 rounded text-[10px] font-bold uppercase tracking-widest transition-all">
+                            <i class="fa-solid fa-user-plus mr-2"></i> Aggiungi Pilota
+                        </button>
                     </div>
 
-                    ${sortedPilots.length < 6 ? `
-                        <button onclick="window.addPilotToTeam('${team.id}')" class="w-full py-2 border-2 border-dashed border-gray-800 text-gray-500 hover:border-red-600 hover:text-red-600 rounded text-[10px] font-bold uppercase tracking-widest transition-all">
-                            <i class="fa-solid fa-user-plus mr-2"></i> Aggiungi Pilota (${sortedPilots.length}/6)
-                        </button>
-                    ` : '<div class="text-center text-[10px] text-gray-600 uppercase italic tracking-tighter">Equipaggio Completo</div>'}
+                    <div class="md:col-span-1 bg-black/30 p-4 rounded-lg self-start">
+                        <h3 class="text-[10px] uppercase text-gray-400 font-bold mb-4 tracking-widest border-b border-gray-800 pb-2">Legenda Ruoli</h3>
+                        <div class="space-y-3">
+                            <div class="legend-item">
+                                <span class="legend-badge">Q</span>
+                                <div>
+                                    <p class="text-white font-bold text-[11px]">Qualifica</p>
+                                    <p class="text-[9px]">Pilota incaricato per il tempo sul giro.</p>
+                                </div>
+                            </div>
+                            <div class="legend-item">
+                                <span class="legend-badge">S</span>
+                                <div>
+                                    <p class="text-white font-bold text-[11px]">Start</p>
+                                    <p class="text-[9px]">Pilota che effettuerà la partenza.</p>
+                                </div>
+                            </div>
+                            <div class="legend-item">
+                                <span class="legend-badge">D</span>
+                                <div>
+                                    <p class="text-white font-bold text-[11px]">Driver</p>
+                                    <p class="text-[9px]">Pilota attivo nella rotazione gara.</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
                 `;
                 container.appendChild(teamCard);
             });
         }
 
-        // --- TEAM UPDATER HELPERS (Corretti con getDoc per evitare loop di onSnapshot) ---
+        // --- TEAM UPDATER HELPERS ---
 
         window.updateTeamName = (id, val) => {
             updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'race_crew', id), { teamName: val });
@@ -401,10 +431,8 @@
             if(snap.exists()){
                 const data = snap.data();
                 const pilots = data.pilots || [];
-                if(pilots.length < 6) {
-                    pilots.push({ name: "Nuovo Pilota", seq: pilots.length + 1, roles: {q:false, s:false, d:true} });
-                    await updateDoc(docRef, { pilots });
-                }
+                pilots.push({ name: "Nuovo Pilota", seq: pilots.length + 1, roles: {q:false, s:false, d:true} });
+                await updateDoc(docRef, { pilots });
             }
         };
 
