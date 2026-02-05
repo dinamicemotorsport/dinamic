@@ -102,7 +102,7 @@
 
     <main class="max-w-7xl mx-auto">
         
-        <!-- DASHBOARD (Invariata) -->
+        <!-- DASHBOARD -->
         <div id="page-dashboard" class="page-content active">
             <div class="grid grid-cols-1 lg:grid-cols-4 gap-8">
                 <div class="lg:col-span-1 space-y-8">
@@ -148,7 +148,7 @@
             </div>
         </div>
 
-        <!-- STINT TO RACE (Invariata) -->
+        <!-- STINT TO RACE -->
         <div id="page-stint" class="page-content">
             <div class="grid grid-cols-1 lg:grid-cols-4 gap-8">
                 <div class="lg:col-span-3">
@@ -173,7 +173,7 @@
             </div>
         </div>
 
-        <!-- RACE CREW PAGE (Aggiornata) -->
+        <!-- RACE CREW PAGE -->
         <div id="page-crew" class="page-content">
             <div class="flex justify-between items-center mb-6">
                 <h2 class="text-2xl font-racing text-white"><i class="fa-solid fa-users-gear text-red-600 mr-2"></i> RACE CREW MANAGEMENT</h2>
@@ -192,7 +192,7 @@
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, doc, setDoc, onSnapshot, collection, updateDoc, deleteDoc, addDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getFirestore, doc, setDoc, onSnapshot, collection, updateDoc, deleteDoc, addDoc, getDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
         const firebaseConfig = {
             apiKey: "AIzaSyBPgrzB_g7PqEDizHf95VXZLj9s5s-lDIM",
@@ -232,7 +232,9 @@
 
             // Hide loading
             onSnapshot(configRef, (snap) => {
-                document.getElementById('loading').style.display = 'none';
+                const loader = document.getElementById('loading');
+                if(loader) loader.style.display = 'none';
+                
                 document.getElementById('sync-status').textContent = "LIVE";
                 document.getElementById('sync-status').className = "font-bold text-green-500 text-xs italic";
                 if(snap.exists()){
@@ -286,6 +288,7 @@
 
         function renderTiming(list) {
             const b = document.getElementById('timingBody');
+            if(!b) return;
             b.innerHTML = list.map((p, i) => `
                 <tr class="border-b border-gray-800/50 hover:bg-white/5 transition-colors">
                     <td class="p-4 font-racing ${i===0?'text-red-500':'text-gray-500'}">${i+1}</td>
@@ -302,6 +305,7 @@
 
         function renderStints(list) {
             const b = document.getElementById('stintBody');
+            if(!b) return;
             b.innerHTML = list.map(p => `
                 <tr class="border-b border-gray-800/50">
                     <td class="p-4"><input class="input-minimal" value="${p.name}" onchange="updatePilot('${p.id}','stints','name',this.value)"></td>
@@ -318,19 +322,19 @@
 
         function renderTeams(teams) {
             const container = document.getElementById('teams-container');
+            if(!container) return;
             container.innerHTML = '';
             
             teams.forEach(team => {
                 const teamCard = document.createElement('div');
                 teamCard.className = "card p-6 flex flex-col gap-6";
                 
-                // Sort pilots by sequence
                 const sortedPilots = [...(team.pilots || [])].sort((a,b) => a.seq - b.seq);
 
                 teamCard.innerHTML = `
                     <div class="flex justify-between items-start border-b border-gray-800 pb-4">
                         <div class="flex-1">
-                            <label class="text-[10px] uppercase text-red-500 font-bold tracking-widest">Team Name</label>
+                            <label class="text-[10px] uppercase text-red-500 font-bold tracking-widest">Nome Team</label>
                             <input type="text" class="text-2xl font-racing bg-transparent outline-none w-full" value="${team.teamName}" onchange="window.updateTeamName('${team.id}', this.value)">
                         </div>
                         <button onclick="deletePilot('${team.id}', 'race_crew')" class="text-gray-600 hover:text-red-500 p-2"><i class="fa-solid fa-trash"></i></button>
@@ -385,7 +389,7 @@
             });
         }
 
-        // --- TEAM UPDATER HELPERS ---
+        // --- TEAM UPDATER HELPERS (Corretti con getDoc per evitare loop di onSnapshot) ---
 
         window.updateTeamName = (id, val) => {
             updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'race_crew', id), { teamName: val });
@@ -393,44 +397,52 @@
 
         window.addPilotToTeam = async (id) => {
             const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'race_crew', id);
-            const teamSnap = await onSnapshot(docRef, (snap) => {
+            const snap = await getDoc(docRef);
+            if(snap.exists()){
                 const data = snap.data();
                 const pilots = data.pilots || [];
                 if(pilots.length < 6) {
                     pilots.push({ name: "Nuovo Pilota", seq: pilots.length + 1, roles: {q:false, s:false, d:true} });
-                    updateDoc(docRef, { pilots });
+                    await updateDoc(docRef, { pilots });
                 }
-            }, { once: true });
+            }
         };
 
         window.updatePilotInTeam = async (teamId, index, field, val) => {
             const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'race_crew', teamId);
-            onSnapshot(docRef, (snap) => {
+            const snap = await getDoc(docRef);
+            if(snap.exists()){
                 const data = snap.data();
                 const pilots = [...data.pilots];
-                pilots[index][field] = field === 'seq' ? parseInt(val) : val;
-                updateDoc(docRef, { pilots });
-            }, { once: true });
+                if(pilots[index]) {
+                    pilots[index][field] = field === 'seq' ? parseInt(val) : val;
+                    await updateDoc(docRef, { pilots });
+                }
+            }
         };
 
         window.updateRoleInTeam = async (teamId, index, roleKey, val) => {
             const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'race_crew', teamId);
-            onSnapshot(docRef, (snap) => {
+            const snap = await getDoc(docRef);
+            if(snap.exists()){
                 const data = snap.data();
                 const pilots = [...data.pilots];
-                if(!pilots[index].roles) pilots[index].roles = {q:false, s:false, d:false};
-                pilots[index].roles[roleKey] = val;
-                updateDoc(docRef, { pilots });
-            }, { once: true });
+                if(pilots[index]) {
+                    if(!pilots[index].roles) pilots[index].roles = {q:false, s:false, d:false};
+                    pilots[index].roles[roleKey] = val;
+                    await updateDoc(docRef, { pilots });
+                }
+            }
         };
 
         window.removePilotFromTeam = async (teamId, index) => {
             const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'race_crew', teamId);
-            onSnapshot(docRef, (snap) => {
+            const snap = await getDoc(docRef);
+            if(snap.exists()){
                 const data = snap.data();
                 const pilots = data.pilots.filter((_, i) => i !== index);
-                updateDoc(docRef, { pilots });
-            }, { once: true });
+                await updateDoc(docRef, { pilots });
+            }
         };
 
     </script>
