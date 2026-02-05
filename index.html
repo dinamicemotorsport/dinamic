@@ -279,7 +279,13 @@
                 updateDoc(doc(db, 'artifacts', appId, 'public', 'data', col, id), {[field]: val});
             };
 
-            window.deletePilot = (id, col) => deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', col, id));
+            window.deletePilot = (id, col) => {
+                // Confirm deletion for safety
+                if(col === 'race_crew') {
+                    if(!confirm("Sei sicuro di voler eliminare l'intero team? Questa azione è irreversibile.")) return;
+                }
+                deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', col, id));
+            };
             
             // Local track inputs
             document.querySelectorAll('.db-input').forEach(i => {
@@ -330,7 +336,7 @@
             
             teams.forEach(team => {
                 const teamCard = document.createElement('div');
-                teamCard.className = "card p-6 grid grid-cols-1 md:grid-cols-4 gap-6";
+                teamCard.className = "card p-6 grid grid-cols-1 md:grid-cols-4 gap-6 mb-4";
                 
                 const sortedPilots = [...(team.pilots || [])].sort((a,b) => a.seq - b.seq);
 
@@ -339,9 +345,13 @@
                         <div class="flex justify-between items-start border-b border-gray-800 pb-4">
                             <div class="flex-1">
                                 <label class="text-[10px] uppercase text-red-500 font-bold tracking-widest">Team Profile</label>
-                                <input type="text" class="text-2xl font-racing bg-transparent outline-none w-full text-white" value="${team.teamName}" onchange="window.updateTeamName('${team.id}', this.value)">
+                                <div class="flex items-center gap-4">
+                                    <input type="text" class="text-2xl font-racing bg-transparent outline-none w-full text-white" value="${team.teamName}" onchange="window.updateTeamName('${team.id}', this.value)">
+                                    <button onclick="deletePilot('${team.id}', 'race_crew')" class="text-gray-600 hover:text-red-500 transition-colors p-2 text-xl" title="Elimina Team">
+                                        <i class="fa-solid fa-trash-can"></i>
+                                    </button>
+                                </div>
                             </div>
-                            <button onclick="deletePilot('${team.id}', 'race_crew')" class="text-gray-600 hover:text-red-500 p-2"><i class="fa-solid fa-trash"></i></button>
                         </div>
 
                         <div class="overflow-x-auto">
@@ -357,7 +367,7 @@
                                     </tr>
                                 </thead>
                                 <tbody class="divide-y divide-gray-800/50">
-                                    ${sortedPilots.map((p, idx) => `
+                                    ${sortedPilots.length === 0 ? `<tr><td colspan="6" class="py-4 text-center text-gray-600 italic">Nessun pilota assegnato. Clicca su aggiungi pilota.</td></tr>` : sortedPilots.map((p, idx) => `
                                         <tr>
                                             <td class="py-3 px-1">
                                                 <input type="number" class="w-10 bg-black/40 border border-gray-800 rounded text-center py-1 text-red-500" value="${p.seq}" onchange="window.updatePilotInTeam('${team.id}', ${idx}, 'seq', this.value)">
