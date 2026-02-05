@@ -13,7 +13,7 @@
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&family=Inter:wght@300;400;600;700&display=swap');
         :root { --race-red: #e10600; --carbon-dark: #121212; --carbon-light: #1e1e1e; }
-        body { background-color: var(--carbon-dark); color: #e0e0e0; font-family: 'Inter', sans-serif; }
+        body { background-color: var(--carbon-dark); color: #e0e0e0; font-family: 'Inter', sans-serif; overflow-x: hidden; }
         .font-racing { font-family: 'Orbitron', sans-serif; }
         .card { background: var(--carbon-light); border-left: 4px solid var(--race-red); border-radius: 8px; box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.5); }
         .glass { background: rgba(255, 255, 255, 0.05); backdrop-filter: blur(10px); border: 1px solid rgba(255, 255, 255, 0.1); }
@@ -35,13 +35,20 @@
 
         .btn-primary { background-color: var(--race-red); transition: all 0.3s ease; }
         .btn-primary:hover { background-color: #ff0800; transform: translateY(-2px); }
+        
         .track-map-container { background: linear-gradient(rgba(0,0,0,0.6), rgba(0,0,0,0.6)), url('https://images.unsplash.com/photo-1511994298241-608e28f14fde?auto=format&fit=crop&q=80&w=1000') center/cover; height: 120px; border-radius: 8px; display: flex; align-items: center; justify-content: center; }
         .loading-overlay { position: fixed; inset: 0; background: var(--carbon-dark); z-index: 9999; display: flex; flex-direction: column; align-items: center; justify-content: center; transition: opacity 0.5s ease; }
         
-        /* Custom scrollbar for notes */
         .notes-container::-webkit-scrollbar { width: 4px; }
         .notes-container::-webkit-scrollbar-track { background: rgba(0,0,0,0.2); }
         .notes-container::-webkit-scrollbar-thumb { background: var(--race-red); border-radius: 10px; }
+
+        .nav-btn { cursor: pointer; transition: all 0.3s; padding: 0.5rem 1rem; border-bottom: 2px solid transparent; }
+        .nav-btn.active { color: var(--race-red); border-bottom: 2px solid var(--race-red); }
+        
+        .page-content { display: none; }
+        .page-content.active { display: block; animation: fadeIn 0.4s ease; }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
     </style>
 </head>
 <body class="p-4 md:p-8">
@@ -52,10 +59,9 @@
         <div class="w-48 h-1 bg-gray-800 rounded mt-4 overflow-hidden">
             <div id="loading-bar" class="h-full bg-red-600 transition-all duration-500" style="width: 10%"></div>
         </div>
-        <button id="bypass-loading" class="mt-8 text-[10px] text-gray-600 underline hidden" onclick="hideLoading()">Sblocca interfaccia manualmente</button>
     </div>
 
-    <header class="max-w-7xl mx-auto mb-10 flex flex-col md:flex-row justify-between items-center gap-6">
+    <header class="max-w-7xl mx-auto mb-6 flex flex-col md:flex-row justify-between items-center gap-6">
         <div>
             <h1 class="text-4xl font-racing font-bold tracking-tighter text-white">
                 <span class="text-red-600">DINAMIC</span> E-MOTORSPORT <span class="text-sm font-light text-gray-400 block tracking-widest uppercase">Performance Lab</span>
@@ -69,75 +75,155 @@
         </div>
     </header>
 
-    <main class="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-4 gap-8">
-        <!-- Sidebar Info -->
-        <div class="lg:col-span-1 space-y-8">
-            <section class="card p-6">
-                <h2 class="text-xl font-racing mb-4 flex items-center gap-2 text-white"><i class="fa-solid fa-map text-red-600"></i> INFO TRACCIATO</h2>
-                <div class="track-map-container mb-4">
-                    <input type="text" id="track-name" class="db-input bg-transparent text-center font-racing font-bold text-xl text-white outline-none" placeholder="Nome Circuito">
-                </div>
-                <div class="space-y-4">
-                    <div class="grid grid-cols-2 gap-4">
-                        <div>
-                            <label class="text-[10px] uppercase text-gray-400">Meteo</label>
-                            <input type="text" id="weather" class="db-input input-minimal" placeholder="Sereno">
+    <nav class="max-w-7xl mx-auto mb-8 flex gap-8 border-b border-gray-800 font-racing text-xs tracking-widest uppercase text-gray-400">
+        <div id="nav-dashboard" class="nav-btn active" onclick="switchPage('dashboard')">Dashboard</div>
+        <div id="nav-stint" class="nav-btn" onclick="switchPage('stint')">Stint to Race</div>
+        <div id="nav-crew" class="nav-btn" onclick="switchPage('crew')">Race Crew</div>
+    </nav>
+
+    <main class="max-w-7xl mx-auto">
+        
+        <!-- PAGE 1: DASHBOARD (Leaderboard) -->
+        <div id="page-dashboard" class="page-content active">
+            <div class="grid grid-cols-1 lg:grid-cols-4 gap-8">
+                <div class="lg:col-span-1 space-y-8">
+                    <section class="card p-6">
+                        <h2 class="text-xl font-racing mb-4 flex items-center gap-2 text-white"><i class="fa-solid fa-map text-red-600"></i> INFO TRACCIATO</h2>
+                        <div class="track-map-container mb-4">
+                            <input type="text" id="track-name" class="db-input bg-transparent text-center font-racing font-bold text-xl text-white outline-none" placeholder="Nome Circuito">
                         </div>
-                        <div>
-                            <label class="text-[10px] uppercase text-gray-400">Temperatura Aria</label>
-                            <input type="text" id="temp-air" class="db-input input-minimal" placeholder="22°C">
+                        <div class="space-y-4">
+                            <div class="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label class="text-[10px] uppercase text-gray-400">Meteo</label>
+                                    <input type="text" id="weather" class="db-input input-minimal" placeholder="Sereno">
+                                </div>
+                                <div>
+                                    <label class="text-[10px] uppercase text-gray-400">Temperatura Aria</label>
+                                    <input type="text" id="temp-air" class="db-input input-minimal" placeholder="22°C">
+                                </div>
+                            </div>
+                            <div>
+                                <label class="text-[10px] uppercase text-gray-400">Gommatura Pista (%)</label>
+                                <input type="text" id="track-grip" class="db-input input-minimal" placeholder="Optimum (100%)">
+                            </div>
                         </div>
-                    </div>
-                    <div>
-                        <label class="text-[10px] uppercase text-gray-400">Gommatura Pista (%)</label>
-                        <input type="text" id="track-grip" class="db-input input-minimal" placeholder="Optimum (100%)">
-                    </div>
+                    </section>
+                    
+                    <section class="card p-6 flex flex-col h-[600px]">
+                        <div class="flex justify-between items-center mb-4">
+                            <h2 class="text-xl font-racing flex items-center gap-2 text-white"><i class="fa-solid fa-clipboard text-red-600"></i> NOTE TEAM</h2>
+                            <div id="save-indicator" class="text-[9px] text-gray-500 italic uppercase">Sincronizzato</div>
+                        </div>
+                        <div id="notes-list" class="notes-container space-y-4 overflow-y-auto flex-1 pr-2">
+                            <div class="text-xs text-gray-500 italic">Caricamento note...</div>
+                        </div>
+                    </section>
                 </div>
-            </section>
-            
-            <section class="card p-6 flex flex-col h-[600px]">
-                <h2 class="text-xl font-racing mb-4 flex items-center gap-2 text-white"><i class="fa-solid fa-clipboard text-red-600"></i> NOTE TEAM</h2>
-                <div id="notes-list" class="notes-container space-y-4 overflow-y-auto flex-1 pr-2">
-                    <!-- Le note verranno generate qui dinamicamente -->
-                    <div class="text-xs text-gray-500 italic">Caricamento note...</div>
+
+                <div class="lg:col-span-3 space-y-8">
+                    <section class="card p-6">
+                        <div class="flex justify-between items-center mb-6">
+                            <h2 class="text-xl font-racing flex items-center gap-2 text-white"><i class="fa-solid fa-stopwatch text-red-600"></i> LIVE TIMING & TELEMETRY</h2>
+                            <button class="btn-primary text-white px-3 py-2 rounded text-[10px] font-bold uppercase" onclick="addNewPilot('leaderboard')"><i class="fa-solid fa-plus"></i> Aggiungi Pilota</button>
+                        </div>
+                        <div class="overflow-x-auto rounded-lg border border-gray-800">
+                            <table class="w-full text-left">
+                                <thead class="bg-black/40">
+                                    <tr class="text-gray-400 text-[9px] md:text-[10px] uppercase">
+                                        <th class="py-4 px-4 w-12">Pos</th>
+                                        <th class="py-4 px-4">Pilota</th>
+                                        <th class="py-4 px-4">Vettura</th>
+                                        <th class="py-4 px-4 text-right">Best Lap</th>
+                                        <th class="py-4 px-4 text-right">Passo Gara</th>
+                                        <th class="py-4 px-4 text-right">L/Lap</th>
+                                        <th class="py-4 px-4 w-10"></th>
+                                    </tr>
+                                </thead>
+                                <tbody id="timingBody" class="divide-y divide-gray-800"></tbody>
+                            </table>
+                        </div>
+                    </section>
                 </div>
-                <div id="save-indicator" class="text-[9px] text-gray-500 mt-2 text-right italic uppercase">Sincronizzato</div>
-            </section>
+            </div>
         </div>
 
-        <!-- Main Live Timing Content -->
-        <div class="lg:col-span-3 space-y-8">
+        <!-- PAGE 2: STINT TO RACE (Database Indipendente) -->
+        <div id="page-stint" class="page-content">
+            <div class="grid grid-cols-1 lg:grid-cols-4 gap-8">
+                <div class="lg:col-span-3">
+                    <section class="card p-6">
+                        <div class="flex justify-between items-center mb-6">
+                            <h2 class="text-xl font-racing flex items-center gap-2 text-white"><i class="fa-solid fa-gas-pump text-red-600"></i> STINT TO RACE</h2>
+                            <button class="btn-primary text-white px-3 py-2 rounded text-[10px] font-bold uppercase" onclick="addNewPilot('stints')"><i class="fa-solid fa-plus"></i> Aggiungi Pilota Stint</button>
+                        </div>
+                        <div class="overflow-x-auto rounded-lg border border-gray-800">
+                            <table class="w-full text-left">
+                                <thead class="bg-black/40">
+                                    <tr class="text-gray-400 text-[9px] md:text-[10px] uppercase">
+                                        <th class="py-4 px-4">Pilota</th>
+                                        <th class="py-4 px-4">Vettura</th>
+                                        <th class="py-4 px-4">Passo Gara</th>
+                                        <th class="py-4 px-4">Nome Setup</th>
+                                        <th class="py-4 px-4 text-right">L/Lap</th>
+                                        <th class="py-4 px-4 w-10"></th>
+                                    </tr>
+                                </thead>
+                                <tbody id="stintBody" class="divide-y divide-gray-800"></tbody>
+                            </table>
+                        </div>
+                    </section>
+                </div>
+                <div class="lg:col-span-1">
+                    <section class="card p-6 flex flex-col h-[600px]">
+                        <div class="flex justify-between items-center mb-4">
+                            <h2 class="text-xl font-racing flex items-center gap-2 text-white"><i class="fa-solid fa-pen-to-square text-red-600"></i> NOTE STINT</h2>
+                            <div id="stint-save-indicator" class="text-[9px] text-gray-500 italic uppercase">Sincronizzato</div>
+                        </div>
+                        <div id="stint-notes-list" class="notes-container space-y-4 overflow-y-auto flex-1 pr-2">
+                            <div class="text-xs text-gray-500 italic text-center py-10">Aggiungi piloti stint per visualizzare le note dedicate.</div>
+                        </div>
+                    </section>
+                </div>
+            </div>
+        </div>
+
+        <!-- PAGE 3: RACE CREW (Database Indipendente) -->
+        <div id="page-crew" class="page-content">
             <section class="card p-6">
                 <div class="flex justify-between items-center mb-6">
-                    <h2 class="text-xl font-racing flex items-center gap-2 text-white"><i class="fa-solid fa-stopwatch text-red-600"></i> LIVE TIMING & TELEMETRY</h2>
-                    <button class="btn-primary text-white px-3 py-2 rounded text-[10px] font-bold uppercase" onclick="addNewPilot()"><i class="fa-solid fa-plus"></i> Aggiungi Pilota</button>
+                    <h2 class="text-xl font-racing flex items-center gap-2 text-white"><i class="fa-solid fa-users text-red-600"></i> RACE CREW & STINT ORDER</h2>
+                    <button class="btn-primary text-white px-3 py-2 rounded text-[10px] font-bold uppercase" onclick="addNewCrewMember()"><i class="fa-solid fa-plus"></i> Aggiungi Membro</button>
                 </div>
                 <div class="overflow-x-auto rounded-lg border border-gray-800">
                     <table class="w-full text-left">
                         <thead class="bg-black/40">
                             <tr class="text-gray-400 text-[9px] md:text-[10px] uppercase">
-                                <th class="py-4 px-4 w-12">Pos</th>
+                                <th class="py-4 px-4 w-24">Stint #</th>
+                                <th class="py-4 px-4">Nome Team</th>
                                 <th class="py-4 px-4">Pilota</th>
-                                <th class="py-4 px-4">Vettura</th>
-                                <th class="py-4 px-4 text-right">Best Lap</th>
-                                <th class="py-4 px-4 text-right">Passo Gara</th>
-                                <th class="py-4 px-4 text-right">L/Lap</th>
-                                <th class="py-4 px-4 w-10"></th>
+                                <th class="py-4 px-4">Ruolo / Note</th>
+                                <th class="py-4 px-4 w-10 text-center">Azioni</th>
                             </tr>
                         </thead>
-                        <tbody id="timingBody" class="divide-y divide-gray-800"></tbody>
+                        <tbody id="crewBody" class="divide-y divide-gray-800">
+                            <!-- Popolato via JS -->
+                        </tbody>
                     </table>
+                </div>
+                <div class="mt-4 p-4 glass rounded text-[10px] text-gray-400 italic">
+                    <i class="fa-solid fa-info-circle text-red-500 mr-2"></i> La tabella viene ordinata automaticamente in base al numero di Stint inserito.
                 </div>
             </section>
         </div>
+
     </main>
 
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, signInAnonymously, onAuthStateChanged, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, doc, setDoc, onSnapshot, collection, updateDoc, deleteDoc, addDoc, getDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, doc, setDoc, onSnapshot, collection, updateDoc, deleteDoc, addDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-        // CONFIGURAZIONE MANUALE
         const manualConfig = {
             apiKey: "AIzaSyBPgrzB_g7PqEDizHf95VXZLj9s5s-lDIM",
             authDomain: "database-special-event.firebaseapp.com",
@@ -155,14 +241,21 @@
             "Corvette Z06 GT3.R", "Honda NSX GT3 Evo22"
         ];
 
-        const loadingStatus = document.getElementById('loading-status');
-        const loadingBar = document.getElementById('loading-bar');
         const syncStatus = document.getElementById('sync-status');
         const notesList = document.getElementById('notes-list');
+        const stintNotesList = document.getElementById('stint-notes-list');
         const saveIndicator = document.getElementById('save-indicator');
-
+        const stintSaveIndicator = document.getElementById('stint-save-indicator');
+        
         let allNotes = {}; 
-        let currentPilots = [];
+        let stintNotes = {}; 
+
+        window.switchPage = (pageId) => {
+            document.querySelectorAll('.page-content').forEach(p => p.classList.remove('active'));
+            document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+            document.getElementById(`page-${pageId}`).classList.add('active');
+            document.getElementById(`nav-${pageId}`).classList.add('active');
+        };
 
         window.hideLoading = () => {
             const overlay = document.getElementById('loading');
@@ -179,175 +272,210 @@
             const db = getFirestore(app);
 
             onAuthStateChanged(auth, (user) => {
-                if (user) {
-                    startSync(db, appId);
-                } else {
-                    signInAnonymously(auth);
-                }
+                if (user) startSync(db, appId);
+                else signInAnonymously(auth);
             });
         } catch (e) { console.error(e); }
 
         function startSync(db, appId) {
             const configRef = doc(db, 'artifacts', appId, 'public', 'data', 'config', 'default');
-            const pilotsColRef = collection(db, 'artifacts', appId, 'public', 'data', 'leaderboard');
+            const leaderboardCol = collection(db, 'artifacts', appId, 'public', 'data', 'leaderboard');
+            const stintsCol = collection(db, 'artifacts', appId, 'public', 'data', 'stints');
+            const crewCol = collection(db, 'artifacts', appId, 'public', 'data', 'race_crew');
 
-            // Sincronizzazione Config e Note
+            // Config / Track Info Sync
             onSnapshot(configRef, (snap) => {
                 hideLoading();
                 syncStatus.textContent = "LIVE";
                 syncStatus.className = "font-bold text-green-500 text-xs uppercase";
-
                 if (snap.exists()) {
                     const data = snap.data();
-                    
-                    // Input statici (track info)
                     Object.keys(data).forEach(id => {
                         const el = document.getElementById(id);
-                        if (el && id !== 'briefing-notes' && document.activeElement !== el) {
-                            el.value = data[id];
-                        }
+                        if (el && !['pilotNotes', 'stintNotes'].includes(id) && document.activeElement !== el) el.value = data[id];
                     });
-
-                    // Gestione Note
                     if (data.pilotNotes) {
                         allNotes = data.pilotNotes;
-                        renderNotes(db, configRef);
+                        renderNotes(db, configRef, 'dashboard');
+                    }
+                    if (data.stintNotes) {
+                        stintNotes = data.stintNotes;
+                        renderNotes(db, configRef, 'stint');
                     }
                 }
             });
 
-            // Sincronizzazione Piloti
-            onSnapshot(pilotsColRef, (snap) => {
+            // Dashboard Table Sync
+            onSnapshot(leaderboardCol, (snap) => {
                 const list = [];
                 snap.forEach(d => list.push({id: d.id, ...d.data()}));
                 list.sort((a, b) => timeToSeconds(a.lapTime) - timeToSeconds(b.lapTime));
-                
-                currentPilots = list;
-                renderNotes(db, configRef);
-                renderTable(list, db, appId);
+                renderDashboardTable(list, db, appId);
+                renderNotes(db, configRef, 'dashboard', list.map(p => p.name));
             });
 
-            // Salvataggio altri input statici
+            // Stint Table Sync
+            onSnapshot(stintsCol, (snap) => {
+                const list = [];
+                snap.forEach(d => list.push({id: d.id, ...d.data()}));
+                renderStintTable(list, db, appId);
+                renderNotes(db, configRef, 'stint', list.map(p => p.name));
+            });
+
+            // Race Crew Sync
+            onSnapshot(crewCol, (snap) => {
+                const list = [];
+                snap.forEach(d => list.push({id: d.id, ...d.data()}));
+                // Sort by stint number
+                list.sort((a, b) => (parseInt(a.stintNum) || 99) - (parseInt(b.stintNum) || 99));
+                renderCrewTable(list, db, appId);
+            });
+
+            // Generic Inputs Sync
             let staticTimer;
             document.querySelectorAll('.db-input').forEach(input => {
                 input.addEventListener('input', () => {
                     clearTimeout(staticTimer);
-                    staticTimer = setTimeout(async () => {
+                    staticTimer = setTimeout(() => {
                         const data = {};
                         document.querySelectorAll('.db-input').forEach(i => { if(i.id) data[i.id] = i.value; });
-                        await setDoc(configRef, data, { merge: true });
+                        setDoc(configRef, data, { merge: true });
                     }, 500);
                 });
             });
 
-            window.addNewPilot = () => addDoc(pilotsColRef, { 
-                name: "Nuovo Pilota", 
-                lapTime: "2:00.000",
-                racePace: "2:01.500",
-                fuelPerLap: "3.20",
-                car: CAR_MODELS[0]
-            });
-            window.updatePilot = (id, f, v) => updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'leaderboard', id), {[f]: v});
-            window.deletePilot = (id) => deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'leaderboard', id));
+            // Database Actions
+            window.addNewPilot = (collectionName) => {
+                const colRef = collection(db, 'artifacts', appId, 'public', 'data', collectionName);
+                addDoc(colRef, { 
+                    name: "Nuovo Pilota", lapTime: "2:00.000", racePace: "2:01.500", 
+                    fuelPerLap: "3.20", car: CAR_MODELS[0], setupName: "S_Standard"
+                });
+            };
+
+            window.addNewCrewMember = () => {
+                addDoc(crewCol, { 
+                    stintNum: "1", teamName: "Dinamic E-Motorsport", 
+                    name: "Nuovo Pilota", role: "Race Starter"
+                });
+            };
+
+            window.updatePilot = (id, collectionName, field, value) => {
+                const docRef = doc(db, 'artifacts', appId, 'public', 'data', collectionName, id);
+                updateDoc(docRef, {[field]: value});
+            };
+
+            window.deletePilot = (id, collectionName) => {
+                const docRef = doc(db, 'artifacts', appId, 'public', 'data', collectionName, id);
+                deleteDoc(docRef);
+            };
         }
 
-        // Renderizza tutti i campi note contemporaneamente
-        function renderNotes(db, configRef) {
-            // Se non ci sono piloti e allNotes è vuoto, mostriamo solo Team General
-            const pilotNames = ["Team General", ...currentPilots.map(p => p.name || "Senza nome")];
+        function renderNotes(db, configRef, type, currentPilotNames = []) {
+            const isDashboard = type === 'dashboard';
+            const targetList = isDashboard ? notesList : stintNotesList;
+            const targetData = isDashboard ? allNotes : stintNotes;
+            const targetIndicator = isDashboard ? saveIndicator : stintSaveIndicator;
+            const dbField = isDashboard ? 'pilotNotes' : 'stintNotes';
             
-            // Per evitare di resettare il cursore mentre si scrive, aggiorniamo solo se necessario
-            // O creiamo i campi se non esistono
-            pilotNames.forEach(name => {
-                const safeId = "note-" + btoa(name).replace(/=/g, "");
+            const names = isDashboard ? ["Team General", ...currentPilotNames] : currentPilotNames;
+            
+            if (names.length === 0 && !isDashboard) {
+                targetList.innerHTML = `<div class="text-xs text-gray-500 italic text-center py-10">Aggiungi piloti stint per visualizzare le note dedicate.</div>`;
+                return;
+            } else if (names.length > 0 && targetList.querySelector('.text-gray-500.italic')) {
+                targetList.innerHTML = '';
+            }
+
+            names.forEach(name => {
+                const safeId = `${type}-note-` + btoa(name).replace(/=/g, "");
                 let container = document.getElementById(safeId);
                 
                 if (!container) {
                     container = document.createElement('div');
                     container.id = safeId;
                     container.className = "space-y-1";
-                    container.innerHTML = `
-                        <label class="text-[9px] uppercase text-red-500 font-bold tracking-wider">${name}</label>
-                        <textarea class="w-full h-24 bg-black/40 border border-gray-700 rounded p-2 text-xs text-white focus:outline-none focus:border-red-600 transition-colors" 
-                                  placeholder="Note per ${name}..."></textarea>
-                    `;
-                    notesList.appendChild(container);
-
+                    container.innerHTML = `<label class="text-[9px] uppercase text-red-500 font-bold tracking-wider">${name}</label>
+                        <textarea class="w-full h-24 bg-black/40 border border-gray-700 rounded p-2 text-xs text-white focus:outline-none focus:border-red-600 transition-colors" placeholder="Note per ${name}..."></textarea>`;
+                    targetList.appendChild(container);
+                    
                     const textarea = container.querySelector('textarea');
-                    textarea.value = allNotes[name] || "";
-
-                    // Listener salvataggio specifico per questo pilota
+                    textarea.value = targetData[name] || "";
+                    
                     let noteTimer;
                     textarea.addEventListener('input', () => {
-                        saveIndicator.textContent = "Salvataggio...";
+                        targetIndicator.textContent = "Salvataggio...";
                         clearTimeout(noteTimer);
-                        noteTimer = setTimeout(async () => {
-                            allNotes[name] = textarea.value;
-                            try {
-                                await setDoc(configRef, { pilotNotes: allNotes }, { merge: true });
-                                saveIndicator.textContent = "Sincronizzato";
-                            } catch (e) {
-                                saveIndicator.textContent = "Errore";
-                            }
+                        noteTimer = setTimeout(() => {
+                            targetData[name] = textarea.value;
+                            setDoc(configRef, { [dbField]: targetData }, { merge: true }).then(() => { 
+                                targetIndicator.textContent = "Sincronizzato"; 
+                            });
                         }, 800);
                     });
                 } else {
-                    // Aggiorna valore solo se l'utente non sta scrivendo in QUESTO campo
                     const textarea = container.querySelector('textarea');
-                    if (document.activeElement !== textarea) {
-                        textarea.value = allNotes[name] || "";
-                    }
-                    // Aggiorna l'etichetta se il nome è cambiato (per i piloti in tabella)
+                    if (document.activeElement !== textarea) textarea.value = targetData[name] || "";
                     container.querySelector('label').textContent = name;
                 }
             });
 
-            // Rimuovi container di piloti eliminati
-            const existingIds = pilotNames.map(name => "note-" + btoa(name).replace(/=/g, ""));
-            Array.from(notesList.children).forEach(child => {
-                if (child.id && !existingIds.includes(child.id)) {
-                    child.remove();
-                }
+            const currentIds = names.map(name => `${type}-note-` + btoa(name).replace(/=/g, ""));
+            Array.from(targetList.children).forEach(child => {
+                if (child.id && !currentIds.includes(child.id)) child.remove();
             });
         }
 
-        function renderTable(pilots, db, appId) {
+        function renderDashboardTable(pilots, db, appId) {
             const tbody = document.getElementById('timingBody');
             tbody.innerHTML = '';
             pilots.forEach((p, i) => {
                 const tr = document.createElement('tr');
-                const carOptions = CAR_MODELS.map(model => 
-                    `<option value="${model}" ${p.car === model ? 'selected' : ''}>${model}</option>`
-                ).join('');
-
                 tr.innerHTML = `
                     <td class="py-4 px-4 font-racing ${i===0?'text-red-500':'text-gray-500'} font-bold">${i+1}</td>
-                    <td class="py-4 px-4 min-w-[120px]">
-                        <input type="text" class="input-minimal font-bold w-full" value="${p.name || ''}" 
-                               onchange="window.updatePilot('${p.id}', 'name', this.value)">
-                    </td>
-                    <td class="py-4 px-4 min-w-[150px]">
-                        <select class="select-minimal" onchange="window.updatePilot('${p.id}', 'car', this.value)">
-                            ${carOptions}
-                        </select>
-                    </td>
-                    <td class="py-4 px-4 text-right">
-                        <input type="text" class="input-minimal text-right font-mono text-white w-full" value="${p.lapTime || '2:00.000'}" 
-                               onchange="window.updatePilot('${p.id}', 'lapTime', this.value)">
-                    </td>
-                    <td class="py-4 px-4 text-right">
-                        <input type="text" class="input-minimal text-right font-mono text-red-400 w-full" value="${p.racePace || '2:01.500'}" 
-                               onchange="window.updatePilot('${p.id}', 'racePace', this.value)">
-                    </td>
-                    <td class="py-4 px-4 text-right">
-                        <input type="text" class="input-minimal text-right font-mono text-blue-400 w-full" value="${p.fuelPerLap || '3.20'}" 
-                               onchange="window.updatePilot('${p.id}', 'fuelPerLap', this.value)">
-                    </td>
-                    <td class="py-4 px-4 text-center">
-                        <button onclick="window.deletePilot('${p.id}')" class="text-gray-600 hover:text-red-500 transition-colors">
-                            <i class="fa-solid fa-trash-can text-xs"></i>
-                        </button>
-                    </td>
+                    <td class="py-4 px-4"><input type="text" class="input-minimal font-bold" value="${p.name}" onchange="window.updatePilot('${p.id}', 'leaderboard', 'name', this.value)"></td>
+                    <td class="py-4 px-4"><select class="select-minimal" onchange="window.updatePilot('${p.id}', 'leaderboard', 'car', this.value)">
+                        ${CAR_MODELS.map(m => `<option value="${m}" ${p.car===m?'selected':''}>${m}</option>`).join('')}
+                    </select></td>
+                    <td class="py-4 px-4 text-right"><input type="text" class="input-minimal text-right font-mono" value="${p.lapTime}" onchange="window.updatePilot('${p.id}', 'leaderboard', 'lapTime', this.value)"></td>
+                    <td class="py-4 px-4 text-right"><input type="text" class="input-minimal text-right font-mono text-red-400" value="${p.racePace}" onchange="window.updatePilot('${p.id}', 'leaderboard', 'racePace', this.value)"></td>
+                    <td class="py-4 px-4 text-right"><input type="text" class="input-minimal text-right font-mono text-blue-400" value="${p.fuelPerLap}" onchange="window.updatePilot('${p.id}', 'leaderboard', 'fuelPerLap', this.value)"></td>
+                    <td class="py-4 px-4 text-center"><button onclick="window.deletePilot('${p.id}', 'leaderboard')" class="text-gray-600 hover:text-red-500"><i class="fa-solid fa-trash-can"></i></button></td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        function renderStintTable(pilots, db, appId) {
+            const tbody = document.getElementById('stintBody');
+            tbody.innerHTML = '';
+            pilots.forEach((p) => {
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td class="py-4 px-4"><input type="text" class="input-minimal font-bold" value="${p.name}" onchange="window.updatePilot('${p.id}', 'stints', 'name', this.value)"></td>
+                    <td class="py-4 px-4"><select class="select-minimal" onchange="window.updatePilot('${p.id}', 'stints', 'car', this.value)">
+                        ${CAR_MODELS.map(m => `<option value="${m}" ${p.car===m?'selected':''}>${m}</option>`).join('')}
+                    </select></td>
+                    <td class="py-4 px-4"><input type="text" class="input-minimal font-mono text-red-400" value="${p.racePace}" onchange="window.updatePilot('${p.id}', 'stints', 'racePace', this.value)"></td>
+                    <td class="py-4 px-4"><input type="text" class="input-minimal italic text-gray-400" placeholder="Setup Name" value="${p.setupName || ''}" onchange="window.updatePilot('${p.id}', 'stints', 'setupName', this.value)"></td>
+                    <td class="py-4 px-4 text-right"><input type="text" class="input-minimal text-right font-mono text-blue-400" value="${p.fuelPerLap}" onchange="window.updatePilot('${p.id}', 'stints', 'fuelPerLap', this.value)"></td>
+                    <td class="py-4 px-4 text-center"><button onclick="window.deletePilot('${p.id}', 'stints')" class="text-gray-600 hover:text-red-500"><i class="fa-solid fa-trash-can"></i></button></td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        function renderCrewTable(crew, db, appId) {
+            const tbody = document.getElementById('crewBody');
+            tbody.innerHTML = '';
+            crew.forEach((c) => {
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td class="py-4 px-4"><input type="number" class="input-minimal font-racing text-red-500 font-bold text-center" value="${c.stintNum}" onchange="window.updatePilot('${c.id}', 'race_crew', 'stintNum', this.value)"></td>
+                    <td class="py-4 px-4"><input type="text" class="input-minimal uppercase font-bold text-gray-400" value="${c.teamName}" onchange="window.updatePilot('${c.id}', 'race_crew', 'teamName', this.value)"></td>
+                    <td class="py-4 px-4"><input type="text" class="input-minimal font-bold" value="${c.name}" onchange="window.updatePilot('${c.id}', 'race_crew', 'name', this.value)"></td>
+                    <td class="py-4 px-4"><input type="text" class="input-minimal text-xs" placeholder="Es: Starter / Night Stint" value="${c.role || ''}" onchange="window.updatePilot('${c.id}', 'race_crew', 'role', this.value)"></td>
+                    <td class="py-4 px-4 text-center"><button onclick="window.deletePilot('${c.id}', 'race_crew')" class="text-gray-600 hover:text-red-500"><i class="fa-solid fa-trash-can"></i></button></td>
                 `;
                 tbody.appendChild(tr);
             });
