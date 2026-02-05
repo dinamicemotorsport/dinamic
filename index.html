@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>SimRacing Team - Live Dashboard</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/font-awesome.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <script src="https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js" type="module"></script>
     <script src="https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js" type="module"></script>
     <script src="https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js" type="module"></script>
@@ -233,7 +233,7 @@
             const stintsCol = collection(db, 'artifacts', appId, 'public', 'data', 'stints');
             const crewCol = collection(db, 'artifacts', appId, 'public', 'data', 'race_crew');
 
-            // Hide loading
+            // Nascondi caricamento
             onSnapshot(configRef, (snap) => {
                 const loader = document.getElementById('loading');
                 if(loader) loader.style.display = 'none';
@@ -249,7 +249,7 @@
                 }
             });
 
-            // Sync Tables
+            // Sincronizzazione Tabelle
             onSnapshot(leaderboardCol, (snap) => {
                 const list = []; snap.forEach(d => list.push({id: d.id, ...d.data()}));
                 list.sort((a,b) => (a.lapTime || '9:99').localeCompare(b.lapTime || '9:99'));
@@ -266,7 +266,7 @@
                 renderTeams(teams);
             });
 
-            // Add Actions
+            // Azioni Database
             window.addNewPilot = (col) => {
                 addDoc(collection(db, 'artifacts', appId, 'public', 'data', col), { name: "Pilota", car: CAR_MODELS[0], lapTime: "2:00.000", racePace: "2:01.000" });
             };
@@ -280,20 +280,19 @@
             };
 
             window.deletePilot = (id, col) => {
-                // Confirm deletion for safety
-                if(col === 'race_crew') {
-                    if(!confirm("Sei sicuro di voler eliminare l'intero team? Questa azione è irreversibile.")) return;
-                }
+                // Conferma eliminazione
+                const confirmMsg = col === 'race_crew' ? "Sei sicuro di voler eliminare l'intero team?" : "Eliminare questo pilota?";
+                if(!confirm(confirmMsg)) return;
                 deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', col, id));
             };
             
-            // Local track inputs
+            // Input tracciato
             document.querySelectorAll('.db-input').forEach(i => {
                 i.addEventListener('change', () => setDoc(configRef, {[i.id]: i.value}, {merge:true}));
             });
         }
 
-        // --- RENDER FUNCTIONS ---
+        // --- FUNZIONI DI RENDERING ---
 
         function renderTiming(list) {
             const b = document.getElementById('timingBody');
@@ -347,8 +346,8 @@
                                 <label class="text-[10px] uppercase text-red-500 font-bold tracking-widest">Team Profile</label>
                                 <div class="flex items-center gap-4">
                                     <input type="text" class="text-2xl font-racing bg-transparent outline-none w-full text-white" value="${team.teamName}" onchange="window.updateTeamName('${team.id}', this.value)">
-                                    <button onclick="deletePilot('${team.id}', 'race_crew')" class="text-gray-600 hover:text-red-500 transition-colors p-2 text-xl" title="Elimina Team">
-                                        <i class="fa-solid fa-trash-can"></i>
+                                    <button onclick="window.deletePilot('${team.id}', 'race_crew')" class="text-red-600 hover:text-white transition-all bg-red-600/10 hover:bg-red-600 p-2 rounded-md text-sm border border-red-600/20" title="Elimina Team">
+                                        <i class="fa-solid fa-trash"></i>
                                     </button>
                                 </div>
                             </div>
@@ -429,7 +428,7 @@
             });
         }
 
-        // --- TEAM UPDATER HELPERS ---
+        // --- HELPERS AGGIORNAMENTO TEAM ---
 
         window.updateTeamName = (id, val) => {
             updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'race_crew', id), { teamName: val });
