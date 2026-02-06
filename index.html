@@ -167,13 +167,15 @@
         // Configurazione
         const CAR_MODELS = ["Ferrari 296 GT3", "Porsche 911 GT3 R (992)", "BMW M4 GT3", "Lamborghini Huracan GT3 EVO2", "McLaren 720S GT3 Evo", "Mercedes-AMG GT3 Evo", "Audi R8 LMS GT3 evo II", "Aston Martin Vantage AMR GT3 Evo", "Ford Mustang GT3", "Corvette Z06 GT3.R"];
         
-        // Verifica sicura delle variabili globali iniettate dall'ambiente
-        let firebaseConfig;
-        try {
-            firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : null;
-        } catch (e) {
-            console.error("Errore nel parsing della configurazione Firebase:", e);
-        }
+        const firebaseConfig = {
+            apiKey: "AIzaSyBPgrzB_g7PqEDizHf95VXZLj9s5s-lDIM",
+            authDomain: "database-special-event.firebaseapp.com",
+            projectId: "database-special-event",
+            storageBucket: "database-special-event.firebasestorage.app",
+            messagingSenderId: "380853834737",
+            appId: "1:380853834737:web:85099e91fed8c285426a50",
+            measurementId: "G-0VZBTGRX32"
+        };
 
         const appId = typeof __app_id !== 'undefined' ? __app_id : 'simracing-pro-v1';
 
@@ -181,14 +183,13 @@
         let currentUser = null;
         let isInitialized = false;
 
-        // Inizializzazione Firebase solo se la config esiste
-        if (firebaseConfig) {
+        // Inizializzazione Firebase
+        try {
             app = initializeApp(firebaseConfig);
             auth = getAuth(app);
             db = getFirestore(app);
-        } else {
-            document.getElementById('sync-status').textContent = "CONFIG ERR";
-            console.error("Impossibile inizializzare Firebase: __firebase_config non definito.");
+        } catch (e) {
+            console.error("Errore inizializzazione SDK:", e);
         }
 
         // Gestione Loader
@@ -200,19 +201,23 @@
             }
         };
 
-        // Timeout di sicurezza per evitare blocchi infiniti
-        setTimeout(hideLoading, 3000);
-
         window.switchPage = (pageId) => {
             document.querySelectorAll('.page-content').forEach(p => p.classList.remove('active'));
             document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
-            document.getElementById(`page-${pageId}`).classList.add('active');
-            document.getElementById(`nav-${pageId}`).classList.add('active');
+            const target = document.getElementById(`page-${pageId}`);
+            if (target) target.classList.add('active');
+            const nav = document.getElementById(`nav-${pageId}`);
+            if (nav) nav.classList.add('active');
         };
 
-        // Auth Workflow conforme a RULE 3
+        // Auth Workflow conforme a RULE 3 con gestione fallback
         const initAuth = async () => {
-            if (!auth) return;
+            if (!auth) {
+                console.warn("Database non disponibile - Utilizzo dati locali");
+                document.getElementById('sync-status').textContent = "OFFLINE MODE";
+                hideLoading();
+                return;
+            }
             try {
                 if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
                     await signInWithCustomToken(auth, __initial_auth_token);
@@ -225,6 +230,7 @@
             }
         };
 
+        // Avvio app
         if (auth) {
             onAuthStateChanged(auth, (user) => {
                 if (user) {
@@ -237,9 +243,6 @@
                     initAuth();
                 }
             });
-        } else {
-            // Se non c'è Firebase, sblocchiamo comunque l'UI per mostrare il layout
-            hideLoading();
         }
 
         function startApp() {
@@ -253,14 +256,13 @@
 
             document.getElementById('sync-status').textContent = "SYNCING...";
 
-            // 1. Configurazione Globale
+            // Sincronizzazione Config
             onSnapshot(configRef, (snap) => {
                 document.getElementById('sync-status').textContent = "LIVE";
                 document.getElementById('sync-status').className = "font-bold text-green-500 text-xs italic uppercase";
                 if (snap.exists()) {
                     const data = snap.data();
-                    const fields = ['track-name', 'weather', 'temp-air'];
-                    fields.forEach(field => {
+                    ['track-name', 'weather', 'temp-air'].forEach(field => {
                         const el = document.getElementById(field);
                         if (el && document.activeElement !== el) {
                             el.value = data[field] || "";
@@ -269,35 +271,33 @@
                 }
             }, (err) => {
                 console.warn("Sync error:", err);
-                document.getElementById('sync-status').textContent = "OFFLINE";
+                document.getElementById('sync-status').textContent = "LOCAL ONLY";
             });
 
-            // 2. Leaderboard Sync
+            // Sincronizzazione Liste
             onSnapshot(leaderboardCol, (snap) => {
                 const list = [];
                 snap.forEach(d => list.push({ id: d.id, ...d.data() }));
                 list.sort((a,b) => (a.lapTime || '9:99.999').localeCompare(b.lapTime || '9:99.999'));
                 renderTiming(list);
-            });
+            }, () => {});
 
-            // 3. Stints Sync
             onSnapshot(stintsCol, (snap) => {
                 const list = [];
                 snap.forEach(d => list.push({ id: d.id, ...d.data() }));
                 renderStints(list);
-            });
+            }, () => {});
 
-            // 4. Crew/Teams Sync
             onSnapshot(crewCol, (snap) => {
                 const list = [];
                 snap.forEach(d => list.push({ id: d.id, ...d.data() }));
                 renderTeams(list);
-            });
+            }, () => {});
 
-            // Event Listener per Configurazione
+            // Event Listener Input
             document.querySelectorAll('.db-input').forEach(input => {
                 input.addEventListener('change', (e) => {
-                    if (!currentUser) return;
+                    if (!currentUser || !db) return;
                     setDoc(configRef, { [e.target.id]: e.target.value }, { merge: true });
                 });
             });
@@ -308,7 +308,7 @@
         function renderTiming(list) {
             const body = document.getElementById('timingBody');
             if(!body) return;
-            body.innerHTML = list.length === 0 ? '<tr><td colspan="6" class="p-8 text-center text-gray-600 italic">Nessun dato live disponibile.</td></tr>' : 
+            body.innerHTML = list.length === 0 ? '<tr><td colspan="6" class="p-8 text-center text-gray-600 italic">Nessun dato. Clicca su "+ Pilota" per iniziare.</td></tr>' : 
             list.map((p, i) => `
                 <tr class="border-b border-gray-800/40 hover:bg-white/5 transition-colors">
                     <td class="p-4 font-racing ${i===0?'text-red-500':'text-gray-500'} text-center">${i+1}</td>
@@ -330,7 +330,8 @@
         function renderStints(list) {
             const body = document.getElementById('stintBody');
             if(!body) return;
-            body.innerHTML = list.map(p => `
+            body.innerHTML = list.length === 0 ? '<tr><td colspan="6" class="p-8 text-center text-gray-600 italic">Configura qui i consumi e il setup per ogni pilota.</td></tr>' :
+            list.map(p => `
                 <tr class="border-b border-gray-800/40">
                     <td class="p-4 space-y-2">
                         <input class="input-minimal font-bold" value="${p.name || ''}" onchange="updateEntry('${p.id}','stints','name',this.value)">
@@ -352,7 +353,7 @@
         function renderTeams(teams) {
             const container = document.getElementById('teams-container');
             if(!container) return;
-            container.innerHTML = teams.length === 0 ? '<div class="card p-8 text-center text-gray-600 italic">Nessun team configurato.</div>' : 
+            container.innerHTML = teams.length === 0 ? '<div class="card p-8 text-center text-gray-600 italic">Crea un team per gestire la rotazione piloti.</div>' : 
             teams.map(team => {
                 const pilots = [...(team.pilots || [])].sort((a,b) => a.seq - b.seq);
                 return `
@@ -400,7 +401,7 @@
             }).join('');
         }
 
-        // --- AZIONI DATABASE ---
+        // --- AZIONI DATABASE (Con controllo esistenza db) ---
 
         window.addNewPilot = async (col) => {
             if (!currentUser || !db) return;
