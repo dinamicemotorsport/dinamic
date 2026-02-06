@@ -164,9 +164,9 @@
         import { getAuth, signInAnonymously, onAuthStateChanged, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, doc, setDoc, onSnapshot, collection, updateDoc, deleteDoc, addDoc, getDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-        // Configurazione
         const CAR_MODELS = ["Ferrari 296 GT3", "Porsche 911 GT3 R (992)", "BMW M4 GT3", "Lamborghini Huracan GT3 EVO2", "McLaren 720S GT3 Evo", "Mercedes-AMG GT3 Evo", "Audi R8 LMS GT3 evo II", "Aston Martin Vantage AMR GT3 Evo", "Ford Mustang GT3", "Corvette Z06 GT3.R"];
         
+        // Chiavi utente fornite
         const firebaseConfig = {
             apiKey: "AIzaSyBPgrzB_g7PqEDizHf95VXZLj9s5s-lDIM",
             authDomain: "database-special-event.firebaseapp.com",
@@ -177,7 +177,7 @@
             measurementId: "G-0VZBTGRX32"
         };
 
-        const appId = typeof __app_id !== 'undefined' ? __app_id : 'simracing-pro-v1';
+        const appId = 'simracing-pro-v1';
 
         let app, auth, db;
         let currentUser = null;
@@ -192,7 +192,6 @@
             console.error("Errore inizializzazione SDK:", e);
         }
 
-        // Gestione Loader
         const hideLoading = () => {
             const loader = document.getElementById('loading');
             if (loader) {
@@ -210,27 +209,28 @@
             if (nav) nav.classList.add('active');
         };
 
-        // Auth Workflow conforme a RULE 3 con gestione fallback
+        // Correzione Auth: Diamo priorità all'accesso anonimo se il token fallisce
         const initAuth = async () => {
-            if (!auth) {
-                console.warn("Database non disponibile - Utilizzo dati locali");
-                document.getElementById('sync-status').textContent = "OFFLINE MODE";
-                hideLoading();
-                return;
-            }
+            if (!auth) return;
             try {
-                if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-                    await signInWithCustomToken(auth, __initial_auth_token);
+                // Rileva se siamo nell'ambiente Canvas con un token specifico, altrimenti vai in anonimo
+                if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token && __initial_auth_token.length > 0) {
+                    try {
+                        await signInWithCustomToken(auth, __initial_auth_token);
+                    } catch (tokenErr) {
+                        console.warn("Token mismatch, falling back to Anonymous Auth");
+                        await signInAnonymously(auth);
+                    }
                 } else {
                     await signInAnonymously(auth);
                 }
             } catch (err) {
                 console.error("Auth Error:", err);
+                document.getElementById('sync-status').textContent = "AUTH ERROR";
                 hideLoading();
             }
         };
 
-        // Avvio app
         if (auth) {
             onAuthStateChanged(auth, (user) => {
                 if (user) {
@@ -249,6 +249,7 @@
             if (!db) return;
             hideLoading();
             
+            // Definiamo i percorsi secondo RULE 1
             const configRef = doc(db, 'artifacts', appId, 'public', 'data', 'config', 'main');
             const leaderboardCol = collection(db, 'artifacts', appId, 'public', 'data', 'leaderboard');
             const stintsCol = collection(db, 'artifacts', appId, 'public', 'data', 'stints');
@@ -256,7 +257,6 @@
 
             document.getElementById('sync-status').textContent = "SYNCING...";
 
-            // Sincronizzazione Config
             onSnapshot(configRef, (snap) => {
                 document.getElementById('sync-status').textContent = "LIVE";
                 document.getElementById('sync-status').className = "font-bold text-green-500 text-xs italic uppercase";
@@ -270,11 +270,10 @@
                     });
                 }
             }, (err) => {
-                console.warn("Sync error:", err);
-                document.getElementById('sync-status').textContent = "LOCAL ONLY";
+                console.error("Firestore error:", err);
+                document.getElementById('sync-status').textContent = "DB ERROR";
             });
 
-            // Sincronizzazione Liste
             onSnapshot(leaderboardCol, (snap) => {
                 const list = [];
                 snap.forEach(d => list.push({ id: d.id, ...d.data() }));
@@ -294,7 +293,6 @@
                 renderTeams(list);
             }, () => {});
 
-            // Event Listener Input
             document.querySelectorAll('.db-input').forEach(input => {
                 input.addEventListener('change', (e) => {
                     if (!currentUser || !db) return;
@@ -303,12 +301,12 @@
             });
         }
 
-        // --- FUNZIONI DI RENDERING ---
+        // --- RENDERING ---
 
         function renderTiming(list) {
             const body = document.getElementById('timingBody');
             if(!body) return;
-            body.innerHTML = list.length === 0 ? '<tr><td colspan="6" class="p-8 text-center text-gray-600 italic">Nessun dato. Clicca su "+ Pilota" per iniziare.</td></tr>' : 
+            body.innerHTML = list.length === 0 ? '<tr><td colspan="6" class="p-8 text-center text-gray-600 italic">Aggiungi un pilota per iniziare.</td></tr>' : 
             list.map((p, i) => `
                 <tr class="border-b border-gray-800/40 hover:bg-white/5 transition-colors">
                     <td class="p-4 font-racing ${i===0?'text-red-500':'text-gray-500'} text-center">${i+1}</td>
@@ -330,12 +328,12 @@
         function renderStints(list) {
             const body = document.getElementById('stintBody');
             if(!body) return;
-            body.innerHTML = list.length === 0 ? '<tr><td colspan="6" class="p-8 text-center text-gray-600 italic">Configura qui i consumi e il setup per ogni pilota.</td></tr>' :
+            body.innerHTML = list.length === 0 ? '<tr><td colspan="6" class="p-8 text-center text-gray-600 italic">Nessuno stint configurato.</td></tr>' :
             list.map(p => `
                 <tr class="border-b border-gray-800/40">
                     <td class="p-4 space-y-2">
                         <input class="input-minimal font-bold" value="${p.name || ''}" onchange="updateEntry('${p.id}','stints','name',this.value)">
-                        <textarea class="note-area" placeholder="Dettagli setup..." onchange="updateEntry('${p.id}','stints','notes',this.value)">${p.notes || ''}</textarea>
+                        <textarea class="note-area" placeholder="Note setup..." onchange="updateEntry('${p.id}','stints','notes',this.value)">${p.notes || ''}</textarea>
                     </td>
                     <td class="p-4">
                         <select class="select-minimal" onchange="updateEntry('${p.id}','stints','car',this.value)">
@@ -389,28 +387,15 @@
                         </table>
                         <button onclick="addPilotToTeam('${team.id}')" class="w-full py-2 border-2 border-dashed border-gray-800 text-gray-600 hover:text-red-600 rounded text-[10px] font-bold uppercase transition-all">+ Aggiungi Pilota</button>
                     </div>
-                    <div class="md:col-span-1 bg-black/20 p-4 rounded-lg">
-                        <h4 class="text-[10px] uppercase text-gray-500 font-bold mb-4 tracking-widest">Legenda Ruoli</h4>
-                        <div class="space-y-2 text-[10px]">
-                            <div class="flex items-center gap-2"><span class="legend-badge">Q</span> Qualifica</div>
-                            <div class="flex items-center gap-2"><span class="legend-badge">S</span> Start/Partenza</div>
-                            <div class="flex items-center gap-2"><span class="legend-badge">D</span> Driver Rotation</div>
-                        </div>
-                    </div>
                 </div>`;
             }).join('');
         }
 
-        // --- AZIONI DATABASE (Con controllo esistenza db) ---
-
+        // --- AZIONI DB ---
         window.addNewPilot = async (col) => {
             if (!currentUser || !db) return;
             await addDoc(collection(db, 'artifacts', appId, 'public', 'data', col), { 
-                name: "Nuovo Pilota", 
-                car: CAR_MODELS[0], 
-                lapTime: "2:00.000", 
-                racePace: "2:01.000", 
-                createdAt: Date.now() 
+                name: "Pilota", car: CAR_MODELS[0], lapTime: "2:00.000", racePace: "2:01.000", createdAt: Date.now() 
             });
         };
 
@@ -421,17 +406,14 @@
 
         window.deleteEntry = async (id, col) => {
             if(!currentUser || !db) return;
-            if(confirm("Sei sicuro di voler eliminare questa voce?")) {
+            if(confirm("Eliminare definitivamente?")) {
                 deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', col, id));
             }
         };
 
         window.addNewTeam = async () => {
             if (!currentUser || !db) return;
-            addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'race_crew'), { 
-                teamName: "Nuovo Team", 
-                pilots: [] 
-            });
+            addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'race_crew'), { teamName: "Nuovo Team", pilots: [] });
         };
 
         window.updateTeamName = (id, val) => {
@@ -445,7 +427,7 @@
             const snap = await getDoc(ref);
             if(snap.exists()) {
                 const pilots = snap.data().pilots || [];
-                pilots.push({ name: "Pilota", seq: pilots.length + 1, roles: { q: false, s: false, d: true } });
+                pilots.push({ name: "Nuovo", seq: pilots.length + 1, roles: { q: false, s: false, d: true } });
                 await updateDoc(ref, { pilots });
             }
         };
