@@ -67,13 +67,14 @@
     </header>
 
     <nav class="max-w-7xl mx-auto mb-8 flex gap-4 md:gap-8 border-b border-gray-800 font-racing text-[10px] md:text-xs tracking-widest uppercase text-gray-400 overflow-x-auto">
-        <div id="nav-dashboard" class="nav-btn active" onclick="switchPage('dashboard')">Dashboard</div>
+        <!-- Modificato: Dashboard -> Car Test -->
+        <div id="nav-dashboard" class="nav-btn active" onclick="switchPage('dashboard')">Car Test</div>
         <div id="nav-stint" class="nav-btn" onclick="switchPage('stint')">Stint Config</div>
         <div id="nav-crew" class="nav-btn" onclick="switchPage('crew')">Race Crew</div>
     </nav>
 
     <main class="max-w-7xl mx-auto space-y-6">
-        <!-- DASHBOARD -->
+        <!-- CAR TEST -->
         <div id="page-dashboard" class="page-content active space-y-6">
             <!-- Pannello Direttive Piloti -->
             <section class="directive-card p-5 rounded-r-lg">
@@ -127,11 +128,11 @@
                 </div>
             </section>
 
-            <!-- Pannello Live Timing Dashboard -->
+            <!-- Pannello Live Timing - Car Test -->
             <section class="card p-6">
                 <div class="flex justify-between items-center mb-6">
                     <h2 class="text-lg font-racing text-white uppercase flex items-center">
-                        <i class="fa-solid fa-stopwatch text-red-600 mr-2"></i> Live Timing
+                        <i class="fa-solid fa-stopwatch text-red-600 mr-2"></i> Live Timing - Car Test
                     </h2>
                     <button class="btn-primary text-white px-4 py-2 rounded text-[10px] font-bold uppercase tracking-wider" onclick="addNewPilot('leaderboard')">
                         <i class="fa-solid fa-plus mr-1"></i> Aggiungi Pilota
@@ -292,7 +293,7 @@
                 }
             });
 
-            // Sync Dashboard Leaderboard
+            // Sync Car Test Leaderboard
             onSnapshot(leaderboardCol, (snap) => {
                 const list = [];
                 snap.forEach(d => list.push({ id: d.id, ...d.data() }));
