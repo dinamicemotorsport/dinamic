@@ -39,7 +39,7 @@
         <div class="text-2xl font-racing animate-pulse text-red-600 mb-2">DINAMIC E-MOTORSPORT</div>
         <div class="text-xs text-gray-500 uppercase tracking-widest">Sincronizzazione Dati...</div>
         <div class="w-48 h-1 bg-gray-800 rounded mt-4 overflow-hidden">
-            <div id="loading-bar" class="h-full bg-red-600 w-1/4 animate-bounce"></div>
+            <div id="loading-bar" class="h-full bg-red-600 w-1/4 animate-pulse"></div>
         </div>
     </div>
 
@@ -110,15 +110,16 @@
             </div>
         </div>
 
-        <!-- Altre pagine (Placeholder per velocità) -->
+        <!-- Altre pagine -->
         <div id="page-stint" class="page-content">
             <div class="card p-8 text-center">
-                <p class="text-gray-500 font-racing">Modulo Stint in Caricamento...</p>
+                <p class="text-gray-500 font-racing italic">Modulo Stint - Pronto all'uso</p>
+                <button class="btn-primary text-white px-6 py-2 rounded mt-4 text-xs font-bold uppercase" onclick="addEntry('stints')">Configura Primo Stint</button>
             </div>
         </div>
         <div id="page-crew" class="page-content">
              <div class="card p-8 text-center">
-                <p class="text-gray-500 font-racing">Modulo Crew in Caricamento...</p>
+                <p class="text-gray-500 font-racing italic">Modulo Crew - Pronto all'uso</p>
             </div>
         </div>
     </main>
@@ -132,7 +133,7 @@
 
         // Setup Firebase dalle variabili d'ambiente
         const firebaseConfig = JSON.parse(__firebase_config);
-        const appId = typeof __app_id !== 'undefined' ? __app_id : 'simracing-app-default';
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'simracing-app-v2';
         
         const app = initializeApp(firebaseConfig);
         const auth = getAuth(app);
@@ -140,11 +141,17 @@
 
         let currentUser = null;
 
-        // Funzione per nascondere il loader
+        // Funzione per nascondere il loader in modo sicuro
         const hideLoader = () => {
             const loader = document.getElementById('loading');
-            if (loader) loader.style.display = 'none';
+            if (loader) {
+                loader.classList.add('opacity-0');
+                setTimeout(() => loader.style.display = 'none', 300);
+            }
         };
+
+        // Fail-safe: Se il DB non risponde in 3 secondi, sblocca comunque l'UI
+        setTimeout(hideLoader, 3000);
 
         // Navigazione
         window.switchPage = (pageId) => {
@@ -163,9 +170,9 @@
                     await signInAnonymously(auth);
                 }
             } catch (err) {
-                console.error("Auth error:", err);
-                hideLoader(); // Nascondi comunque per mostrare lo stato di errore
-                document.getElementById('sync-status').textContent = "AUTH ERROR";
+                console.warn("Auth warning:", err);
+                hideLoader();
+                document.getElementById('sync-status').textContent = "OFFLINE MODE";
             }
         };
 
@@ -181,11 +188,10 @@
         function setupSubscriptions() {
             if (!currentUser) return;
 
-            // Percorsi Firestore secondo le regole obbligatorie
             const configRef = doc(db, 'artifacts', appId, 'public', 'data', 'config', 'main');
             const leaderboardCol = collection(db, 'artifacts', appId, 'public', 'data', 'leaderboard');
 
-            // 1. Configurazione Generale
+            // Listener Config
             onSnapshot(configRef, (snap) => {
                 hideLoader();
                 document.getElementById('sync-status').textContent = "LIVE";
@@ -199,22 +205,32 @@
                     });
                 }
             }, (err) => {
-                console.error("Config stream error:", err);
+                console.error("Config error:", err);
                 hideLoader();
             });
 
-            // 2. Leaderboard
+            // Listener Leaderboard
             onSnapshot(leaderboardCol, (snap) => {
+                hideLoader();
                 const list = [];
                 snap.forEach(d => list.push({ id: d.id, ...d.data() }));
+                // Ordinamento sicuro
                 list.sort((a,b) => (a.lapTime || '9:99').localeCompare(b.lapTime || '9:99'));
                 renderLeaderboard(list);
-            }, (err) => console.error("Leaderboard error:", err));
+            }, (err) => {
+                console.error("Leaderboard error:", err);
+                hideLoader();
+            });
 
             // Event Listeners per Config
             document.querySelectorAll('.db-config').forEach(input => {
                 input.addEventListener('change', async (e) => {
-                    await setDoc(configRef, { [e.target.id]: e.target.value }, { merge: true });
+                    if (!currentUser) return;
+                    try {
+                        await setDoc(configRef, { [e.target.id]: e.target.value }, { merge: true });
+                    } catch (err) {
+                        console.error("Save error:", err);
+                    }
                 });
             });
         }
@@ -223,6 +239,11 @@
             const body = document.getElementById('timingBody');
             if (!body) return;
             
+            if (list.length === 0) {
+                body.innerHTML = `<tr><td colspan="5" class="p-8 text-center text-gray-600 italic">Nessun dato presente. Clicca su "+ PILOTA" per iniziare.</td></tr>`;
+                return;
+            }
+
             body.innerHTML = list.map((p, idx) => `
                 <tr class="border-b border-gray-800/40 hover:bg-white/5 transition-all">
                     <td class="p-3">
@@ -251,27 +272,39 @@
             `).join('');
         }
 
-        // Metodi Globali per l'interfaccia
+        // Metodi Globali
         window.addEntry = async (colName) => {
             if (!currentUser) return;
-            await addDoc(collection(db, 'artifacts', appId, 'public', 'data', colName), {
-                name: "Nuovo Pilota",
-                car: CAR_MODELS[0],
-                lapTime: "2:00.000",
-                racePace: "2:01.000",
-                createdAt: Date.now()
-            });
+            try {
+                await addDoc(collection(db, 'artifacts', appId, 'public', 'data', colName), {
+                    name: "Nuovo Pilota",
+                    car: CAR_MODELS[0],
+                    lapTime: "2:00.000",
+                    racePace: "2:01.000",
+                    createdAt: Date.now()
+                });
+            } catch (err) {
+                console.error("Add error:", err);
+            }
         };
 
         window.updateEntry = async (id, field, val) => {
             if (!currentUser) return;
-            const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'leaderboard', id);
-            await updateDoc(docRef, { [field]: val });
+            try {
+                const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'leaderboard', id);
+                await updateDoc(docRef, { [field]: val });
+            } catch (err) {
+                console.error("Update error:", err);
+            }
         };
 
         window.removeEntry = async (id) => {
             if (!currentUser || !confirm("Eliminare questa riga?")) return;
-            await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'leaderboard', id));
+            try {
+                await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'leaderboard', id));
+            } catch (err) {
+                console.error("Delete error:", err);
+            }
         };
 
     </script>
