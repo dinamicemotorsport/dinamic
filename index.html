@@ -6,167 +6,100 @@
     <title>SimRacing Team - Live Dashboard</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
-    <script src="https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js" type="module"></script>
-    <script src="https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js" type="module"></script>
-    <script src="https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js" type="module"></script>
-
+    
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&family=Inter:wght@300;400;600;700&display=swap');
         :root { --race-red: #e10600; --carbon-dark: #121212; --carbon-light: #1e1e1e; }
-        body { background-color: var(--carbon-dark); color: #e0e0e0; font-family: 'Inter', sans-serif; overflow-x: hidden; }
+        body { background-color: var(--carbon-dark); color: #e0e0e0; font-family: 'Inter', sans-serif; margin: 0; padding: 0; }
         .font-racing { font-family: 'Orbitron', sans-serif; }
         .card { background: var(--carbon-light); border-left: 4px solid var(--race-red); border-radius: 8px; box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.5); }
         .glass { background: rgba(255, 255, 255, 0.05); backdrop-filter: blur(10px); border: 1px solid rgba(255, 255, 255, 0.1); }
         .input-minimal { background: transparent; border: none; border-bottom: 1px solid rgba(255,255,255,0.1); color: white; padding: 2px 4px; outline: none; width: 100%; }
         .input-minimal:focus { border-bottom: 1px solid var(--race-red); }
+        .select-minimal { background: #2a2a2a; border: 1px solid rgba(255,255,255,0.1); color: #ccc; font-size: 0.75rem; border-radius: 4px; padding: 4px; outline: none; width: 100%; }
+        .btn-primary { background-color: var(--race-red); transition: all 0.3s ease; cursor: pointer; }
+        .btn-primary:hover { background-color: #ff0800; transform: translateY(-1px); }
         
-        .select-minimal { 
-            background: #2a2a2a; 
-            border: 1px solid rgba(255,255,255,0.1); 
-            color: #ccc; 
-            font-size: 0.75rem; 
-            border-radius: 4px; 
-            padding: 4px;
-            outline: none;
-            cursor: pointer;
-            width: 100%;
-        }
-        .select-minimal:focus { border-color: var(--race-red); color: white; }
-
-        .btn-primary { background-color: var(--race-red); transition: all 0.3s ease; }
-        .btn-primary:hover { background-color: #ff0800; transform: translateY(-2px); }
-        
-        .loading-overlay { position: fixed; inset: 0; background: var(--carbon-dark); z-index: 9999; display: flex; flex-direction: column; align-items: center; justify-content: center; transition: opacity 0.5s ease; }
-        
-        .nav-btn { cursor: pointer; transition: all 0.3s; padding: 0.5rem 1rem; border-bottom: 2px solid transparent; }
-        .nav-btn.active { color: var(--race-red); border-bottom: 2px solid var(--race-red); }
+        #loading { position: fixed; inset: 0; background: var(--carbon-dark); z-index: 10000; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+        .nav-btn { cursor: pointer; transition: all 0.3s; padding: 0.5rem 1rem; border-bottom: 2px solid transparent; opacity: 0.6; }
+        .nav-btn:hover { opacity: 1; }
+        .nav-btn.active { color: var(--race-red); border-bottom: 2px solid var(--race-red); opacity: 1; }
         
         .page-content { display: none; }
-        .page-content.active { display: block; animation: fadeIn 0.4s ease; }
+        .page-content.active { display: block; animation: fadeIn 0.3s ease; }
         @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
 
-        .note-area { 
-            background: rgba(0,0,0,0.2); 
-            border: 1px solid rgba(255,255,255,0.05); 
-            border-radius: 4px; 
-            padding: 4px 8px; 
-            font-size: 0.7rem; 
-            color: #aaa;
-            width: 100%;
-            min-height: 24px;
-            resize: none;
-            overflow: hidden;
-        }
-        .note-area:focus { border-color: var(--race-red); color: white; outline: none; }
-
-        .step-badge {
-            background: var(--race-red);
-            color: white;
-            width: 20px;
-            height: 20px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            border-radius: 50%;
-            font-size: 10px;
-            font-weight: bold;
-            flex-shrink: 0;
-        }
+        .note-area { background: rgba(0,0,0,0.2); border: 1px solid rgba(255,255,255,0.05); border-radius: 4px; padding: 4px 8px; font-size: 0.7rem; color: #aaa; width: 100%; min-height: 24px; resize: none; }
     </style>
 </head>
 <body class="p-4 md:p-8">
 
-    <div id="loading" class="loading-overlay">
-        <div class="text-2xl font-racing animate-pulse mb-4 text-red-600">CONNESSIONE AL TEAM...</div>
+    <!-- Schermata di Caricamento -->
+    <div id="loading">
+        <div class="text-2xl font-racing animate-pulse text-red-600 mb-2">DINAMIC E-MOTORSPORT</div>
+        <div class="text-xs text-gray-500 uppercase tracking-widest">Sincronizzazione Dati...</div>
         <div class="w-48 h-1 bg-gray-800 rounded mt-4 overflow-hidden">
-            <div id="loading-bar" class="h-full bg-red-600 transition-all duration-500" style="width: 10%"></div>
+            <div id="loading-bar" class="h-full bg-red-600 w-1/4 animate-bounce"></div>
         </div>
     </div>
 
     <header class="max-w-7xl mx-auto mb-6 flex flex-col md:flex-row justify-between items-center gap-6">
         <div>
             <h1 class="text-4xl font-racing font-bold tracking-tighter text-white">
-                <span class="text-red-600">DINAMIC</span> E-MOTORSPORT <span class="text-sm font-light text-gray-400 block tracking-widest uppercase">Performance Lab</span>
+                <span class="text-red-600">DINAMIC</span> E-MOTORSPORT
+                <span class="text-sm font-light text-gray-400 block tracking-widest uppercase">Performance Lab</span>
             </h1>
         </div>
-        <div class="flex gap-4">
-            <div class="glass p-3 rounded-lg text-center min-w-[120px]">
-                <span class="block text-xs uppercase text-gray-400">Database</span>
-                <span id="sync-status" class="font-bold text-gray-500 text-xs uppercase italic">Offline</span>
-            </div>
+        <div class="glass p-3 rounded-lg text-center min-w-[120px]">
+            <span class="block text-[10px] uppercase text-gray-400">Database Status</span>
+            <span id="sync-status" class="font-bold text-yellow-500 text-xs uppercase italic">Connecting...</span>
         </div>
     </header>
 
-    <nav class="max-w-7xl mx-auto mb-8 flex gap-8 border-b border-gray-800 font-racing text-xs tracking-widest uppercase text-gray-400">
+    <nav class="max-w-7xl mx-auto mb-8 flex gap-4 md:gap-8 border-b border-gray-800 font-racing text-[10px] md:text-xs tracking-widest uppercase text-gray-400 overflow-x-auto">
         <div id="nav-dashboard" class="nav-btn active" onclick="switchPage('dashboard')">Dashboard</div>
         <div id="nav-stint" class="nav-btn" onclick="switchPage('stint')">Stint to Race</div>
         <div id="nav-crew" class="nav-btn" onclick="switchPage('crew')">Race Crew</div>
     </nav>
 
     <main class="max-w-7xl mx-auto">
-        
-        <!-- DASHBOARD -->
+        <!-- Pagina Dashboard -->
         <div id="page-dashboard" class="page-content active">
             <div class="grid grid-cols-1 lg:grid-cols-4 gap-8">
-                <div class="lg:col-span-1 space-y-8">
-                    <!-- INFO TRACCIATO -->
+                <div class="lg:col-span-1 space-y-6">
                     <section class="card p-6">
-                        <h2 class="text-xl font-racing mb-4 flex items-center gap-2 text-white"><i class="fa-solid fa-map text-red-600"></i> INFO TRACCIATO</h2>
+                        <h2 class="text-lg font-racing mb-4 text-white"><i class="fa-solid fa-map text-red-600 mr-2"></i> CIRCUITO</h2>
                         <div class="space-y-4">
-                            <input type="text" id="track-name" class="db-input input-minimal font-bold" placeholder="Nome Circuito">
+                            <input type="text" id="track-name" class="db-config input-minimal font-bold" placeholder="Nome Circuito">
                             <div class="grid grid-cols-2 gap-4">
                                 <div>
                                     <label class="text-[10px] uppercase text-gray-400">Meteo</label>
-                                    <input type="text" id="weather" class="db-input input-minimal" placeholder="Sereno">
+                                    <input type="text" id="weather" class="db-config input-minimal" placeholder="Sereno">
                                 </div>
                                 <div>
-                                    <label class="text-[10px] uppercase text-gray-400">Temp Aria</label>
-                                    <input type="text" id="temp-air" class="db-input input-minimal" placeholder="22°C">
+                                    <label class="text-[10px] uppercase text-gray-400">Aria</label>
+                                    <input type="text" id="temp-air" class="db-config input-minimal" placeholder="22°C">
                                 </div>
-                            </div>
-                        </div>
-                    </section>
-
-                    <!-- PROCEDURE TEAM -->
-                    <section class="card p-6 border-l-blue-500 bg-blue-900/10">
-                        <h2 class="text-xl font-racing mb-4 text-white flex items-center gap-2">
-                            <i class="fa-solid fa-clipboard-list text-blue-500"></i> PROCEDURE TEAM
-                        </h2>
-                        <div class="space-y-4">
-                            <div class="flex gap-3 items-start">
-                                <span class="step-badge bg-blue-500">1</span>
-                                <p class="text-xs text-gray-300 leading-tight">
-                                    Aggiungere il tempo nella tabella a fianco <span class="text-white font-bold">solo se</span> si è completato uno stint intero.
-                                </p>
-                            </div>
-                            <div class="flex gap-3 items-start">
-                                <span class="step-badge bg-blue-500">2</span>
-                                <p class="text-xs text-gray-300 leading-tight">
-                                    Aggiungere la <span class="text-white font-bold">media passo gara</span> prendendola direttamente da <span class="text-blue-400 underline italic">Garage 61</span>.
-                                </p>
                             </div>
                         </div>
                     </section>
                 </div>
 
-                <!-- LIVE TIMING & NOTES -->
                 <div class="lg:col-span-3">
                     <section class="card p-6">
                         <div class="flex justify-between items-center mb-6">
-                            <h2 class="text-xl font-racing text-white">LIVE TIMING & DATA</h2>
-                            <button class="btn-primary text-white px-3 py-2 rounded text-[10px] font-bold" onclick="addNewPilot('leaderboard')">AGGIUNGI PILOTA</button>
+                            <h2 class="text-lg font-racing text-white uppercase">Live Leaderboard</h2>
+                            <button class="btn-primary text-white px-3 py-1 rounded text-[10px] font-bold" onclick="addEntry('leaderboard')">+ PILOTA</button>
                         </div>
                         <div class="overflow-x-auto">
-                            <table class="w-full text-left">
-                                <thead class="bg-black/40 text-[10px] uppercase text-gray-400">
+                            <table class="w-full text-left text-sm">
+                                <thead class="bg-black/40 text-[10px] uppercase text-gray-500">
                                     <tr>
-                                        <th class="p-4">Pos</th>
-                                        <th class="p-4">Pilota / Note</th>
-                                        <th class="p-4">Vettura</th>
-                                        <th class="p-4 text-right">Best</th>
-                                        <th class="p-4 text-right">Passo</th>
-                                        <th class="p-4 text-right">Consumo (L)</th>
-                                        <th class="p-4"></th>
+                                        <th class="p-3">Pilota</th>
+                                        <th class="p-3">Auto</th>
+                                        <th class="p-3 text-right">Best</th>
+                                        <th class="p-3 text-right">Passo</th>
+                                        <th class="p-3"></th>
                                     </tr>
                                 </thead>
                                 <tbody id="timingBody"></tbody>
@@ -177,37 +110,17 @@
             </div>
         </div>
 
-        <!-- STINT TO RACE -->
+        <!-- Altre pagine (Placeholder per velocità) -->
         <div id="page-stint" class="page-content">
-            <div class="grid grid-cols-1 lg:grid-cols-4 gap-8">
-                <div class="lg:col-span-4">
-                    <section class="card p-6">
-                        <div class="flex justify-between items-center mb-6">
-                            <h2 class="text-xl font-racing text-white">STINT CONFIG</h2>
-                            <button class="btn-primary text-white px-3 py-2 rounded text-[10px] font-bold" onclick="addNewPilot('stints')">AGGIUNGI PILOTA</button>
-                        </div>
-                        <div class="overflow-x-auto">
-                            <table class="w-full text-left">
-                                <thead class="bg-black/40 text-[10px] uppercase text-gray-400">
-                                    <tr><th class="p-4">Pilota</th><th class="p-4">Vettura</th><th class="p-4">Passo</th><th class="p-4">Setup</th><th class="p-4 text-right">L/Lap</th><th class="p-4"></th></tr>
-                                </thead>
-                                <tbody id="stintBody"></tbody>
-                            </table>
-                        </div>
-                    </section>
-                </div>
+            <div class="card p-8 text-center">
+                <p class="text-gray-500 font-racing">Modulo Stint in Caricamento...</p>
             </div>
         </div>
-
-        <!-- RACE CREW -->
         <div id="page-crew" class="page-content">
-            <div class="flex justify-between items-center mb-6">
-                <h2 class="text-2xl font-racing text-white"><i class="fa-solid fa-users-gear text-red-600 mr-2"></i> RACE CREW</h2>
-                <button class="btn-primary text-white px-4 py-2 rounded text-[12px] font-bold uppercase tracking-widest" onclick="addNewTeam()">Crea Nuovo Team</button>
+             <div class="card p-8 text-center">
+                <p class="text-gray-500 font-racing">Modulo Crew in Caricamento...</p>
             </div>
-            <div id="teams-container" class="grid grid-cols-1 gap-8"></div>
         </div>
-
     </main>
 
     <script type="module">
@@ -215,43 +128,25 @@
         import { getAuth, signInWithCustomToken, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, doc, setDoc, onSnapshot, collection, updateDoc, deleteDoc, addDoc, getDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-        // Costanti globali fornite dall'ambiente
+        const CAR_MODELS = ["Ferrari 296 GT3", "Porsche 911 GT3 R (992)", "BMW M4 GT3", "Lamborghini Huracan EVO2", "McLaren 720S Evo"];
+
+        // Setup Firebase dalle variabili d'ambiente
         const firebaseConfig = JSON.parse(__firebase_config);
-        const appId = typeof __app_id !== 'undefined' ? __app_id : 'simracing-team-v1';
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'simracing-app-default';
         
-        const CAR_MODELS = ["Ferrari 296 GT3", "Porsche 911 GT3 R (992)", "BMW M4 GT3", "Lamborghini Huracan GT3 EVO2", "McLaren 720S GT3 Evo", "Mercedes-AMG GT3 Evo", "Audi R8 LMS GT3 evo II", "Aston Martin Vantage AMR GT3 Evo", "Ford Mustang GT3", "Corvette Z06 GT3.R"];
-        
-        let db, auth, user;
-
-        // Inizializzazione Firebase
         const app = initializeApp(firebaseConfig);
-        auth = getAuth(app);
-        db = getFirestore(app);
+        const auth = getAuth(app);
+        const db = getFirestore(app);
 
-        // Gestione Autenticazione (MANDATORIA)
-        const initAuth = async () => {
-            try {
-                if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-                    await signInWithCustomToken(auth, __initial_auth_token);
-                } else {
-                    await signInAnonymously(auth);
-                }
-            } catch (error) {
-                console.error("Errore Autenticazione:", error);
-                document.getElementById('sync-status').textContent = "AUTH ERROR";
-                document.getElementById('sync-status').className = "font-bold text-red-500 text-xs italic";
-            }
+        let currentUser = null;
+
+        // Funzione per nascondere il loader
+        const hideLoader = () => {
+            const loader = document.getElementById('loading');
+            if (loader) loader.style.display = 'none';
         };
 
-        onAuthStateChanged(auth, (u) => {
-            if (u) { 
-                user = u; 
-                startApp(); 
-            } else {
-                initAuth();
-            }
-        });
-
+        // Navigazione
         window.switchPage = (pageId) => {
             document.querySelectorAll('.page-content').forEach(p => p.classList.remove('active'));
             document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
@@ -259,220 +154,126 @@
             document.getElementById(`nav-${pageId}`).classList.add('active');
         };
 
-        function startApp() {
-            if (!user) return;
+        // Inizializzazione Autenticazione
+        const init = async () => {
+            try {
+                if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                    await signInWithCustomToken(auth, __initial_auth_token);
+                } else {
+                    await signInAnonymously(auth);
+                }
+            } catch (err) {
+                console.error("Auth error:", err);
+                hideLoader(); // Nascondi comunque per mostrare lo stato di errore
+                document.getElementById('sync-status').textContent = "AUTH ERROR";
+            }
+        };
 
-            const configRef = doc(db, 'artifacts', appId, 'public', 'data', 'config', 'default');
+        onAuthStateChanged(auth, (user) => {
+            if (user) {
+                currentUser = user;
+                setupSubscriptions();
+            } else {
+                init();
+            }
+        });
+
+        function setupSubscriptions() {
+            if (!currentUser) return;
+
+            // Percorsi Firestore secondo le regole obbligatorie
+            const configRef = doc(db, 'artifacts', appId, 'public', 'data', 'config', 'main');
             const leaderboardCol = collection(db, 'artifacts', appId, 'public', 'data', 'leaderboard');
-            const stintsCol = collection(db, 'artifacts', appId, 'public', 'data', 'stints');
-            const crewCol = collection(db, 'artifacts', appId, 'public', 'data', 'race_crew');
 
-            // Listener Configurazione Tracciato
+            // 1. Configurazione Generale
             onSnapshot(configRef, (snap) => {
-                const loader = document.getElementById('loading');
-                if(loader) loader.style.display = 'none';
+                hideLoader();
                 document.getElementById('sync-status').textContent = "LIVE";
                 document.getElementById('sync-status').className = "font-bold text-green-500 text-xs italic";
-                if(snap.exists()){
-                    const d = snap.data();
+                
+                if (snap.exists()) {
+                    const data = snap.data();
                     ["track-name", "weather", "temp-air"].forEach(id => {
                         const el = document.getElementById(id);
-                        if(el && document.activeElement !== el) el.value = d[id] || "";
+                        if (el && document.activeElement !== el) el.value = data[id] || "";
                     });
                 }
-            }, (error) => console.error("Errore Config Snapshot:", error));
+            }, (err) => {
+                console.error("Config stream error:", err);
+                hideLoader();
+            });
 
-            // Listener Leaderboard
+            // 2. Leaderboard
             onSnapshot(leaderboardCol, (snap) => {
-                const list = []; snap.forEach(d => list.push({id: d.id, ...d.data()}));
-                // Ordinamento in memoria per evitare indici Firestore complessi
+                const list = [];
+                snap.forEach(d => list.push({ id: d.id, ...d.data() }));
                 list.sort((a,b) => (a.lapTime || '9:99').localeCompare(b.lapTime || '9:99'));
-                renderTiming(list);
-            }, (error) => console.error("Errore Leaderboard Snapshot:", error));
+                renderLeaderboard(list);
+            }, (err) => console.error("Leaderboard error:", err));
 
-            // Listener Stint
-            onSnapshot(stintsCol, (snap) => {
-                const list = []; snap.forEach(d => list.push({id: d.id, ...d.data()}));
-                renderStints(list);
-            }, (error) => console.error("Errore Stints Snapshot:", error));
-
-            // Listener Crew
-            onSnapshot(crewCol, (snap) => {
-                const teams = []; snap.forEach(d => teams.push({id: d.id, ...d.data()}));
-                renderTeams(teams);
-            }, (error) => console.error("Errore Crew Snapshot:", error));
-
-            // Funzioni Globali di Aggiornamento
-            window.addNewPilot = (col) => {
-                if (!user) return;
-                addDoc(collection(db, 'artifacts', appId, 'public', 'data', col), { 
-                    name: "Nuovo Pilota", 
-                    car: CAR_MODELS[0], 
-                    lapTime: "2:00.000", 
-                    racePace: "2:01.000", 
-                    fuelPerLap: "3.20", 
-                    notes: "" 
-                });
-            };
-
-            window.addNewTeam = () => {
-                if (!user) return;
-                addDoc(crewCol, { teamName: "Nuovo Team", pilots: [] });
-            };
-
-            window.updatePilot = (id, col, field, val) => {
-                if (!user) return;
-                updateDoc(doc(db, 'artifacts', appId, 'public', 'data', col, id), {[field]: val});
-            };
-
-            window.deletePilot = (id, col) => {
-                if(!user || !confirm("Confermi l'eliminazione?")) return;
-                deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', col, id));
-            };
-            
-            document.querySelectorAll('.db-input').forEach(i => {
-                i.addEventListener('change', () => {
-                    if (!user) return;
-                    setDoc(configRef, {[i.id]: i.value}, {merge:true});
+            // Event Listeners per Config
+            document.querySelectorAll('.db-config').forEach(input => {
+                input.addEventListener('change', async (e) => {
+                    await setDoc(configRef, { [e.target.id]: e.target.value }, { merge: true });
                 });
             });
         }
 
-        function renderTiming(list) {
-            const b = document.getElementById('timingBody');
-            if(!b) return;
-            b.innerHTML = list.map((p, i) => `
-                <tr class="border-b border-gray-800/50 hover:bg-white/5 transition-colors">
-                    <td class="p-4 font-racing ${i===0?'text-red-500':'text-gray-500'}">${i+1}</td>
-                    <td class="p-4 space-y-2">
-                        <input class="input-minimal font-bold" value="${p.name}" onchange="updatePilot('${p.id}','leaderboard','name',this.value)">
-                        <textarea class="note-area" placeholder="Note pilota..." onchange="updatePilot('${p.id}','leaderboard','notes',this.value)">${p.notes || ''}</textarea>
+        function renderLeaderboard(list) {
+            const body = document.getElementById('timingBody');
+            if (!body) return;
+            
+            body.innerHTML = list.map((p, idx) => `
+                <tr class="border-b border-gray-800/40 hover:bg-white/5 transition-all">
+                    <td class="p-3">
+                        <input class="input-minimal font-bold" value="${p.name || ''}" 
+                            onchange="window.updateEntry('${p.id}', 'name', this.value)">
                     </td>
-                    <td class="p-4"><select class="select-minimal" onchange="updatePilot('${p.id}','leaderboard','car',this.value)">
-                        ${CAR_MODELS.map(m => `<option ${p.car===m?'selected':''}>${m}</option>`).join('')}
-                    </select></td>
-                    <td class="p-4 text-right"><input class="input-minimal text-right font-mono" value="${p.lapTime}" onchange="updatePilot('${p.id}','leaderboard','lapTime',this.value)"></td>
-                    <td class="p-4 text-right"><input class="input-minimal text-right font-mono text-red-500" value="${p.racePace}" onchange="updatePilot('${p.id}','leaderboard','racePace',this.value)"></td>
-                    <td class="p-4 text-right"><input class="input-minimal text-right font-mono text-blue-400" value="${p.fuelPerLap || '0.00'}" onchange="updatePilot('${p.id}','leaderboard','fuelPerLap',this.value)"></td>
-                    <td class="p-4 text-center"><button onclick="deletePilot('${p.id}','leaderboard')" class="text-gray-600 hover:text-red-500"><i class="fa-solid fa-trash"></i></button></td>
+                    <td class="p-3">
+                        <select class="select-minimal" onchange="window.updateEntry('${p.id}', 'car', this.value)">
+                            ${CAR_MODELS.map(m => `<option ${p.car === m ? 'selected' : ''}>${m}</option>`).join('')}
+                        </select>
+                    </td>
+                    <td class="p-3 text-right">
+                        <input class="input-minimal text-right font-mono" value="${p.lapTime || '2:00.000'}" 
+                            onchange="window.updateEntry('${p.id}', 'lapTime', this.value)">
+                    </td>
+                    <td class="p-3 text-right text-red-500">
+                        <input class="input-minimal text-right font-mono text-red-500" value="${p.racePace || '2:01.000'}" 
+                            onchange="window.updateEntry('${p.id}', 'racePace', this.value)">
+                    </td>
+                    <td class="p-3 text-center">
+                        <button onclick="window.removeEntry('${p.id}')" class="text-gray-600 hover:text-red-500">
+                            <i class="fa-solid fa-trash-can"></i>
+                        </button>
+                    </td>
                 </tr>
             `).join('');
         }
 
-        function renderStints(list) {
-            const b = document.getElementById('stintBody');
-            if(!b) return;
-            b.innerHTML = list.map(p => `
-                <tr class="border-b border-gray-800/50">
-                    <td class="p-4"><input class="input-minimal" value="${p.name}" onchange="updatePilot('${p.id}','stints','name',this.value)"></td>
-                    <td class="p-4"><select class="select-minimal" onchange="updatePilot('${p.id}','stints','car',this.value)">
-                        ${CAR_MODELS.map(m => `<option ${p.car===m?'selected':''}>${m}</option>`).join('')}
-                    </select></td>
-                    <td class="p-4"><input class="input-minimal font-mono text-red-500" value="${p.racePace}" onchange="updatePilot('${p.id}','stints','racePace',this.value)"></td>
-                    <td class="p-4"><input class="input-minimal italic text-gray-400" value="${p.setupName||''}" onchange="updatePilot('${p.id}','stints','setupName',this.value)"></td>
-                    <td class="p-4 text-right"><input class="input-minimal text-right font-mono text-blue-400" value="${p.fuelPerLap||'3.20'}" onchange="updatePilot('${p.id}','stints','fuelPerLap',this.value)"></td>
-                    <td class="p-4 text-center"><button onclick="deletePilot('${p.id}','stints')" class="text-gray-600 hover:text-red-500"><i class="fa-solid fa-trash"></i></button></td>
-                </tr>
-            `).join('');
-        }
-
-        function renderTeams(teams) {
-            const container = document.getElementById('teams-container');
-            if(!container) return;
-            container.innerHTML = teams.map(team => `
-                <div class="card p-6 grid grid-cols-1 md:grid-cols-4 gap-6 mb-4">
-                    <div class="md:col-span-3 space-y-6">
-                        <div class="flex justify-between items-start border-b border-gray-800 pb-4">
-                            <div class="flex-1">
-                                <label class="text-[10px] uppercase text-red-500 font-bold tracking-widest">Team Profile</label>
-                                <div class="flex items-center gap-4">
-                                    <input type="text" class="text-2xl font-racing bg-transparent outline-none w-full text-white" value="${team.teamName}" onchange="window.updateTeamName('${team.id}', this.value)">
-                                    <button onclick="window.deletePilot('${team.id}', 'race_crew')" class="text-red-600 hover:text-white transition-all bg-red-600/10 hover:bg-red-600 p-2 rounded-md text-sm border border-red-600/20">
-                                        <i class="fa-solid fa-trash"></i>
-                                    </button>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="overflow-x-auto">
-                            <table class="w-full text-left text-xs">
-                                <thead>
-                                    <tr class="text-gray-500 uppercase text-[9px]">
-                                        <th class="pb-3 w-12 text-center">Stint</th>
-                                        <th class="pb-3">Pilota</th>
-                                        <th class="pb-3 text-center w-12">Q</th>
-                                        <th class="pb-3 text-center w-12">S</th>
-                                        <th class="pb-3 text-center w-12">D</th>
-                                        <th class="pb-3 w-8"></th>
-                                    </tr>
-                                </thead>
-                                <tbody class="divide-y divide-gray-800/50">
-                                    ${(team.pilots || []).sort((a,b) => a.seq - b.seq).map((p, idx) => `
-                                        <tr>
-                                            <td class="py-3 px-1"><input type="number" class="w-10 bg-black/40 border border-gray-800 rounded text-center py-1 text-red-500" value="${p.seq}" onchange="window.updatePilotInTeam('${team.id}', ${idx}, 'seq', this.value)"></td>
-                                            <td class="py-3 px-1"><input type="text" class="input-minimal font-bold" value="${p.name}" onchange="window.updatePilotInTeam('${team.id}', ${idx}, 'name', this.value)"></td>
-                                            <td class="py-3 px-1 text-center"><input type="checkbox" class="checkbox-custom" ${p.roles?.q ? 'checked' : ''} onchange="window.updateRoleInTeam('${team.id}', ${idx}, 'q', this.checked)"></td>
-                                            <td class="py-3 px-1 text-center"><input type="checkbox" class="checkbox-custom" ${p.roles?.s ? 'checked' : ''} onchange="window.updateRoleInTeam('${team.id}', ${idx}, 's', this.checked)"></td>
-                                            <td class="py-3 px-1 text-center"><input type="checkbox" class="checkbox-custom" ${p.roles?.d ? 'checked' : ''} onchange="window.updateRoleInTeam('${team.id}', ${idx}, 'd', this.checked)"></td>
-                                            <td class="py-3 px-1 text-right"><button onclick="window.removePilotFromTeam('${team.id}', ${idx})" class="text-gray-700 hover:text-red-500"><i class="fa-solid fa-xmark"></i></button></td>
-                                        </tr>
-                                    `).join('')}
-                                </tbody>
-                            </table>
-                        </div>
-                        <button onclick="window.addPilotToTeam('${team.id}')" class="w-full py-3 border-2 border-dashed border-gray-800 text-gray-500 hover:border-red-600 hover:text-red-600 rounded text-[10px] font-bold uppercase tracking-widest transition-all">Aggiungi Pilota</button>
-                    </div>
-                </div>
-            `).join('');
-        }
-
-        window.updateTeamName = (id, val) => {
-            if (!user) return;
-            updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'race_crew', id), { teamName: val });
+        // Metodi Globali per l'interfaccia
+        window.addEntry = async (colName) => {
+            if (!currentUser) return;
+            await addDoc(collection(db, 'artifacts', appId, 'public', 'data', colName), {
+                name: "Nuovo Pilota",
+                car: CAR_MODELS[0],
+                lapTime: "2:00.000",
+                racePace: "2:01.000",
+                createdAt: Date.now()
+            });
         };
 
-        window.addPilotToTeam = async (id) => {
-            if (!user) return;
-            const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'race_crew', id);
-            const snap = await getDoc(docRef);
-            if(snap.exists()){
-                const pilots = snap.data().pilots || [];
-                pilots.push({ name: "Nuovo Pilota", seq: pilots.length + 1, roles: {q:false, s:false, d:true} });
-                await updateDoc(docRef, { pilots });
-            }
+        window.updateEntry = async (id, field, val) => {
+            if (!currentUser) return;
+            const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'leaderboard', id);
+            await updateDoc(docRef, { [field]: val });
         };
 
-        window.updatePilotInTeam = async (teamId, index, field, val) => {
-            if (!user) return;
-            const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'race_crew', teamId);
-            const snap = await getDoc(docRef);
-            if(snap.exists()){
-                const pilots = [...snap.data().pilots];
-                pilots[index][field] = field === 'seq' ? parseInt(val) : val;
-                await updateDoc(docRef, { pilots });
-            }
+        window.removeEntry = async (id) => {
+            if (!currentUser || !confirm("Eliminare questa riga?")) return;
+            await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'leaderboard', id));
         };
 
-        window.updateRoleInTeam = async (teamId, index, roleKey, val) => {
-            if (!user) return;
-            const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'race_crew', teamId);
-            const snap = await getDoc(docRef);
-            if(snap.exists()){
-                const pilots = [...snap.data().pilots];
-                if(!pilots[index].roles) pilots[index].roles = {};
-                pilots[index].roles[roleKey] = val;
-                await updateDoc(docRef, { pilots });
-            }
-        };
-
-        window.removePilotFromTeam = async (teamId, index) => {
-            if (!user) return;
-            const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'race_crew', teamId);
-            const snap = await getDoc(docRef);
-            if(snap.exists()){
-                const pilots = snap.data().pilots.filter((_, i) => i !== index);
-                await updateDoc(docRef, { pilots });
-            }
-        };
     </script>
 </body>
 </html>
