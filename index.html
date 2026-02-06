@@ -10,7 +10,7 @@
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&family=Inter:wght@300;400;600;700&display=swap');
         :root { --race-red: #e10600; --carbon-dark: #121212; --carbon-light: #1e1e1e; }
-        body { background-color: var(--carbon-dark); color: #e0e0e0; font-family: 'Inter', sans-serif; margin: 0; padding: 0; }
+        body { background-color: var(--carbon-dark); color: #e0e0e0; font-family: 'Inter', sans-serif; margin: 0; padding: 0; overflow-x: hidden; }
         .font-racing { font-family: 'Orbitron', sans-serif; }
         .card { background: var(--carbon-light); border-left: 4px solid var(--race-red); border-radius: 8px; box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.5); }
         .glass { background: rgba(255, 255, 255, 0.05); backdrop-filter: blur(10px); border: 1px solid rgba(255, 255, 255, 0.1); }
@@ -40,10 +40,10 @@
 </head>
 <body class="p-4 md:p-8">
 
+    <!-- Schermata di Caricamento -->
     <div id="loading">
         <div class="text-2xl font-racing animate-pulse text-red-600 mb-2">DINAMIC E-MOTORSPORT</div>
-        <div class="text-xs text-gray-500 uppercase tracking-widest">Sincronizzazione Team...</div>
-        <div id="loading-error" class="hidden text-[10px] text-gray-600 mt-4">Connessione lenta... sblocco automatico a breve.</div>
+        <div class="text-xs text-gray-500 uppercase tracking-widest">Sincronizzazione Live...</div>
         <div class="w-48 h-1 bg-gray-800 rounded mt-4 overflow-hidden">
             <div id="loading-bar" class="h-full bg-red-600 w-1/3 animate-pulse"></div>
         </div>
@@ -164,37 +164,30 @@
         import { getAuth, signInAnonymously, onAuthStateChanged, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, doc, setDoc, onSnapshot, collection, updateDoc, deleteDoc, addDoc, getDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-        // Costanti
+        // Configurazione
         const CAR_MODELS = ["Ferrari 296 GT3", "Porsche 911 GT3 R (992)", "BMW M4 GT3", "Lamborghini Huracan GT3 EVO2", "McLaren 720S GT3 Evo", "Mercedes-AMG GT3 Evo", "Audi R8 LMS GT3 evo II", "Aston Martin Vantage AMR GT3 Evo", "Ford Mustang GT3", "Corvette Z06 GT3.R"];
         const firebaseConfig = JSON.parse(__firebase_config);
         const appId = typeof __app_id !== 'undefined' ? __app_id : 'simracing-pro-v1';
 
-        // Inizializzazione
         const app = initializeApp(firebaseConfig);
         const auth = getAuth(app);
         const db = getFirestore(app);
 
         let currentUser = null;
-        let isStarted = false;
+        let isInitialized = false;
 
-        // Loader Failsafe
-        setTimeout(() => {
-            const loading = document.getElementById('loading');
-            if (loading && loading.style.display !== 'none') {
-                document.getElementById('loading-error').classList.remove('hidden');
-                setTimeout(() => { if(!isStarted) hideLoading(); }, 5000);
-            }
-        }, 3000);
-
-        function hideLoading() {
+        // Gestione Loader
+        const hideLoading = () => {
             const loader = document.getElementById('loading');
-            if(loader) {
+            if (loader) {
                 loader.style.opacity = '0';
                 setTimeout(() => loader.style.display = 'none', 500);
             }
-        }
+        };
 
-        // Navigazione
+        // Timeout di sicurezza: se dopo 4 secondi siamo ancora bloccati, sblocchiamo l'UI
+        setTimeout(hideLoading, 4000);
+
         window.switchPage = (pageId) => {
             document.querySelectorAll('.page-content').forEach(p => p.classList.remove('active'));
             document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
@@ -202,20 +195,25 @@
             document.getElementById(`nav-${pageId}`).classList.add('active');
         };
 
-        // Auth
+        // Auth Workflow
         const initAuth = async () => {
-            if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-                await signInWithCustomToken(auth, __initial_auth_token);
-            } else {
-                await signInAnonymously(auth);
+            try {
+                if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                    await signInWithCustomToken(auth, __initial_auth_token);
+                } else {
+                    await signInAnonymously(auth);
+                }
+            } catch (err) {
+                console.error("Auth Error:", err);
+                hideLoading();
             }
         };
 
         onAuthStateChanged(auth, (user) => {
             if (user) {
                 currentUser = user;
-                if (!isStarted) {
-                    isStarted = true;
+                if (!isInitialized) {
+                    isInitialized = true;
                     startApp();
                 }
             } else {
@@ -224,60 +222,70 @@
         });
 
         function startApp() {
+            // Sblocchiamo l'UI non appena l'app inizia la sincronizzazione
+            hideLoading();
+            
             const configRef = doc(db, 'artifacts', appId, 'public', 'data', 'config', 'main');
             const leaderboardCol = collection(db, 'artifacts', appId, 'public', 'data', 'leaderboard');
             const stintsCol = collection(db, 'artifacts', appId, 'public', 'data', 'stints');
             const crewCol = collection(db, 'artifacts', appId, 'public', 'data', 'race_crew');
 
-            // 1. Configurazione Tracciato
+            // 1. Monitoraggio Stato Database
+            document.getElementById('sync-status').textContent = "SYNCING...";
+
+            // 2. Configurazione
             onSnapshot(configRef, (snap) => {
-                hideLoading();
                 document.getElementById('sync-status').textContent = "LIVE";
                 document.getElementById('sync-status').className = "font-bold text-green-500 text-xs italic uppercase";
                 if (snap.exists()) {
                     const data = snap.data();
-                    ["track-name", "weather", "temp-air"].forEach(id => {
-                        const el = document.getElementById(id);
-                        if (el && document.activeElement !== el) el.value = data[id] || "";
-                    });
+                    if (document.activeElement?.id !== "track-name") document.getElementById('track-name').value = data['track-name'] || "";
+                    if (document.activeElement?.id !== "weather") document.getElementById('weather').value = data['weather'] || "";
+                    if (document.activeElement?.id !== "temp-air") document.getElementById('temp-air').value = data['temp-air'] || "";
                 }
+            }, (err) => {
+                console.warn("Config Sync Error:", err);
+                document.getElementById('sync-status').textContent = "OFFLINE";
+                document.getElementById('sync-status').className = "font-bold text-red-500 text-xs italic uppercase";
             });
 
-            // 2. Timing Leaderboard
+            // 3. Leaderboard
             onSnapshot(leaderboardCol, (snap) => {
                 const list = [];
                 snap.forEach(d => list.push({ id: d.id, ...d.data() }));
-                list.sort((a,b) => (a.lapTime || '9:99').localeCompare(b.lapTime || '9:99'));
+                list.sort((a,b) => (a.lapTime || '9:99.999').localeCompare(b.lapTime || '9:99.999'));
                 renderTiming(list);
-            });
+            }, (err) => console.error("Leaderboard Error:", err));
 
-            // 3. Stints
+            // 4. Stints
             onSnapshot(stintsCol, (snap) => {
                 const list = [];
                 snap.forEach(d => list.push({ id: d.id, ...d.data() }));
                 renderStints(list);
             });
 
-            // 4. Crew
+            // 5. Teams
             onSnapshot(crewCol, (snap) => {
-                const teams = [];
-                snap.forEach(d => teams.push({ id: d.id, ...d.data() }));
-                renderTeams(teams);
+                const list = [];
+                snap.forEach(d => list.push({ id: d.id, ...d.data() }));
+                renderTeams(list);
             });
 
-            // Event Listeners Inputs Tracciato
+            // Listeners per Input Globali
             document.querySelectorAll('.db-input').forEach(input => {
                 input.addEventListener('change', (e) => {
+                    if (!currentUser) return;
                     setDoc(configRef, { [e.target.id]: e.target.value }, { merge: true });
                 });
             });
         }
 
-        // Rendering Functions
+        // --- FUNZIONI DI RENDERING ---
+
         function renderTiming(list) {
             const body = document.getElementById('timingBody');
             if(!body) return;
-            body.innerHTML = list.length === 0 ? '<tr><td colspan="6" class="p-8 text-center text-gray-600 italic">Nessun pilota. Aggiungine uno.</td></tr>' : 
+            body.innerHTML = list.length === 0 ? '<tr><td colspan="6" class="p-8 text-center text-gray-600 italic">Nessun pilota monitorato.</td></tr>' : 
             list.map((p, i) => `
                 <tr class="border-b border-gray-800/40 hover:bg-white/5 transition-colors">
                     <td class="p-4 font-racing ${i===0?'text-red-500':'text-gray-500'} text-center">${i+1}</td>
@@ -321,68 +329,75 @@
         function renderTeams(teams) {
             const container = document.getElementById('teams-container');
             if(!container) return;
-            container.innerHTML = teams.length === 0 ? '<div class="card p-8 text-center text-gray-600 italic">Crea il tuo primo team per gestire la rotazione piloti.</div>' : 
+            container.innerHTML = teams.length === 0 ? '<div class="card p-8 text-center text-gray-600 italic">Crea un team per gestire la rotazione piloti.</div>' : 
             teams.map(team => {
-                const sortedPilots = [...(team.pilots || [])].sort((a,b) => a.seq - b.seq);
+                const pilots = [...(team.pilots || [])].sort((a,b) => a.seq - b.seq);
                 return `
                 <div class="card p-6 grid grid-cols-1 md:grid-cols-4 gap-6">
-                    <div class="md:col-span-3 space-y-6">
-                        <div class="flex justify-between items-center border-b border-gray-800 pb-4">
+                    <div class="md:col-span-3 space-y-4">
+                        <div class="flex justify-between items-center border-b border-gray-800 pb-2">
                             <input type="text" class="text-xl font-racing bg-transparent outline-none text-white w-full" value="${team.teamName || 'Team Name'}" onchange="updateTeamName('${team.id}', this.value)">
-                            <button onclick="deleteEntry('${team.id}','race_crew')" class="text-red-900 hover:text-red-500 p-2"><i class="fa-solid fa-trash"></i></button>
+                            <button onclick="deleteEntry('${team.id}','race_crew')" class="text-gray-700 hover:text-red-500"><i class="fa-solid fa-trash"></i></button>
                         </div>
                         <table class="w-full text-xs">
                             <thead>
                                 <tr class="text-gray-600 uppercase text-[9px] tracking-widest">
-                                    <th class="pb-3 w-12 text-center">Ord</th>
-                                    <th class="pb-3 text-left">Pilota</th>
-                                    <th class="pb-3 text-center w-10">Q</th>
-                                    <th class="pb-3 text-center w-10">S</th>
-                                    <th class="pb-3 text-center w-10">D</th>
-                                    <th class="pb-3 w-8"></th>
+                                    <th class="pb-2 w-12 text-center">Ord</th>
+                                    <th class="pb-2 text-left">Pilota</th>
+                                    <th class="pb-2 text-center w-10">Q</th>
+                                    <th class="pb-2 text-center w-10">S</th>
+                                    <th class="pb-2 text-center w-10">D</th>
+                                    <th class="pb-2 w-8"></th>
                                 </tr>
                             </thead>
-                            <tbody class="divide-y divide-gray-800/30">
-                                ${sortedPilots.map((p, idx) => `
-                                    <tr>
-                                        <td class="py-3"><input type="number" class="w-8 bg-black/40 text-center text-red-500 rounded border border-gray-800" value="${p.seq}" onchange="updatePilotInTeam('${team.id}', ${idx}, 'seq', this.value)"></td>
-                                        <td class="py-3 px-2"><input class="input-minimal font-bold" value="${p.name}" onchange="updatePilotInTeam('${team.id}', ${idx}, 'name', this.value)"></td>
-                                        <td class="py-3 text-center"><input type="checkbox" class="checkbox-custom" ${p.roles?.q ? 'checked' : ''} onchange="updateRoleInTeam('${team.id}', ${idx}, 'q', this.checked)"></td>
-                                        <td class="py-3 text-center"><input type="checkbox" class="checkbox-custom" ${p.roles?.s ? 'checked' : ''} onchange="updateRoleInTeam('${team.id}', ${idx}, 's', this.checked)"></td>
-                                        <td class="py-3 text-center"><input type="checkbox" class="checkbox-custom" ${p.roles?.d ? 'checked' : ''} onchange="updateRoleInTeam('${team.id}', ${idx}, 'd', this.checked)"></td>
-                                        <td class="py-3 text-right"><button onclick="removePilotFromTeam('${team.id}', ${idx})" class="text-gray-700 hover:text-red-500"><i class="fa-solid fa-xmark"></i></button></td>
+                            <tbody>
+                                ${pilots.map((p, idx) => `
+                                    <tr class="border-b border-gray-800/20">
+                                        <td class="py-2"><input type="number" class="w-8 bg-black/40 text-center text-red-500 rounded" value="${p.seq}" onchange="updatePilotInTeam('${team.id}', ${idx}, 'seq', this.value)"></td>
+                                        <td class="py-2 px-2"><input class="input-minimal font-bold" value="${p.name}" onchange="updatePilotInTeam('${team.id}', ${idx}, 'name', this.value)"></td>
+                                        <td class="py-2 text-center"><input type="checkbox" class="checkbox-custom" ${p.roles?.q ? 'checked' : ''} onchange="updateRoleInTeam('${team.id}', ${idx}, 'q', this.checked)"></td>
+                                        <td class="py-2 text-center"><input type="checkbox" class="checkbox-custom" ${p.roles?.s ? 'checked' : ''} onchange="updateRoleInTeam('${team.id}', ${idx}, 's', this.checked)"></td>
+                                        <td class="py-2 text-center"><input type="checkbox" class="checkbox-custom" ${p.roles?.d ? 'checked' : ''} onchange="updateRoleInTeam('${team.id}', ${idx}, 'd', this.checked)"></td>
+                                        <td class="py-2 text-right"><button onclick="removePilotFromTeam('${team.id}', ${idx})" class="text-gray-700 hover:text-red-500"><i class="fa-solid fa-xmark"></i></button></td>
                                     </tr>
                                 `).join('')}
                             </tbody>
                         </table>
-                        <button onclick="addPilotToTeam('${team.id}')" class="w-full py-2 border-2 border-dashed border-gray-800 text-gray-600 hover:text-red-600 hover:border-red-600 rounded text-[10px] font-bold uppercase transition-all">+ Aggiungi Pilota</button>
+                        <button onclick="addPilotToTeam('${team.id}')" class="w-full py-2 border-2 border-dashed border-gray-800 text-gray-600 hover:text-red-600 rounded text-[10px] font-bold uppercase transition-all">+ Aggiungi Pilota</button>
                     </div>
-                    <div class="md:col-span-1 bg-black/20 p-4 rounded-lg self-start">
-                        <h4 class="text-[10px] uppercase text-gray-500 font-bold mb-4 tracking-widest border-b border-gray-800 pb-2">Legenda Ruoli</h4>
-                        <div class="space-y-4">
-                            <div class="flex items-center gap-3"><span class="legend-badge">Q</span> <span class="text-[10px]">Qualifica</span></div>
-                            <div class="flex items-center gap-3"><span class="legend-badge">S</span> <span class="text-[10px]">Start / Partenza</span></div>
-                            <div class="flex items-center gap-3"><span class="legend-badge">D</span> <span class="text-[10px]">Driver Rotation</span></div>
+                    <div class="md:col-span-1 bg-black/20 p-4 rounded-lg">
+                        <h4 class="text-[10px] uppercase text-gray-500 font-bold mb-4 tracking-widest">Ruoli</h4>
+                        <div class="space-y-2 text-[10px]">
+                            <div class="flex items-center gap-2"><span class="legend-badge">Q</span> Qualifica</div>
+                            <div class="flex items-center gap-2"><span class="legend-badge">S</span> Start/Partenza</div>
+                            <div class="flex items-center gap-2"><span class="legend-badge">D</span> Driver Rotation</div>
                         </div>
                     </div>
                 </div>`;
             }).join('');
         }
 
-        // Database Helpers
-        window.addNewPilot = (col) => {
-            addDoc(collection(db, 'artifacts', appId, 'public', 'data', col), { name: "Nuovo Pilota", car: CAR_MODELS[0], lapTime: "2:00.000", racePace: "2:01.000", notes: "" });
+        // --- DATABASE HELPERS ---
+
+        window.addNewPilot = async (col) => {
+            if (!currentUser) return;
+            await addDoc(collection(db, 'artifacts', appId, 'public', 'data', col), { 
+                name: "Nuovo Pilota", car: CAR_MODELS[0], lapTime: "2:00.000", racePace: "2:01.000", notes: "", createdAt: Date.now() 
+            });
         };
 
-        window.updateEntry = (id, col, field, val) => {
+        window.updateEntry = async (id, col, field, val) => {
+            if (!currentUser) return;
             updateDoc(doc(db, 'artifacts', appId, 'public', 'data', col, id), { [field]: val });
         };
 
-        window.deleteEntry = (id, col) => {
-            if(confirm("Eliminare definitivamente?")) deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', col, id));
+        window.deleteEntry = async (id, col) => {
+            if(!currentUser || !confirm("Eliminare?")) return;
+            deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', col, id));
         };
 
-        window.addNewTeam = () => {
+        window.addNewTeam = async () => {
+            if (!currentUser) return;
             addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'race_crew'), { teamName: "Nuovo Team", pilots: [] });
         };
 
