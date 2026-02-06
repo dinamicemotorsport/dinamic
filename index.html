@@ -45,7 +45,6 @@
         .page-content.active { display: block; animation: fadeIn 0.4s ease; }
         @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
 
-        /* Checkbox styling */
         .checkbox-custom {
             appearance: none;
             width: 16px;
@@ -70,9 +69,6 @@
             transform: translate(-50%, -50%);
         }
 
-        .legend-item { display: flex; align-items: center; gap: 8px; font-size: 0.75rem; color: #999; margin-bottom: 4px; }
-        .legend-badge { background: #2a2a2a; color: var(--race-red); padding: 2px 6px; border-radius: 4px; font-weight: bold; font-family: 'Orbitron', sans-serif; min-width: 24px; text-align: center; }
-
         .note-area { 
             background: rgba(0,0,0,0.2); 
             border: 1px solid rgba(255,255,255,0.05); 
@@ -86,6 +82,20 @@
             overflow: hidden;
         }
         .note-area:focus { border-color: var(--race-red); color: white; outline: none; }
+
+        .step-badge {
+            background: var(--race-red);
+            color: white;
+            width: 20px;
+            height: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 50%;
+            font-size: 10px;
+            font-weight: bold;
+            flex-shrink: 0;
+        }
     </style>
 </head>
 <body class="p-4 md:p-8">
@@ -139,13 +149,39 @@
                             </div>
                         </div>
                     </section>
-                    <section class="card p-6 flex flex-col h-[500px]">
-                        <h2 class="text-xl font-racing mb-4 text-white">NOTE TEAM</h2>
-                        <div id="notes-list" class="space-y-4 overflow-y-auto flex-1">
+
+                    <!-- PROCEDURE TEAM (Nuovo Pannello) -->
+                    <section class="card p-6 border-l-blue-500 bg-blue-900/10">
+                        <h2 class="text-xl font-racing mb-4 text-white flex items-center gap-2">
+                            <i class="fa-solid fa-clipboard-list text-blue-500"></i> PROCEDURE
+                        </h2>
+                        <div class="space-y-4">
+                            <div class="flex gap-3 items-start">
+                                <span class="step-badge bg-blue-500">1</span>
+                                <p class="text-xs text-gray-300 leading-tight">
+                                    Aggiungere il tempo nella tabella a fianco <span class="text-white font-bold">solo se</span> si è completato uno stint intero.
+                                </p>
+                            </div>
+                            <div class="flex gap-3 items-start">
+                                <span class="step-badge bg-blue-500">2</span>
+                                <p class="text-xs text-gray-300 leading-tight">
+                                    Aggiungere la <span class="text-white font-bold">media passo gara</span> prendendola direttamente da <span class="text-blue-400 underline italic">Garage 61</span>.
+                                </p>
+                            </div>
+                        </div>
+                    </section>
+
+                    <!-- NOTE SINGOLI PILOTI -->
+                    <section class="card p-6 flex flex-col h-[400px]">
+                        <h2 class="text-xl font-racing mb-4 text-white flex items-center gap-2">
+                            <i class="fa-solid fa-comment-dots text-red-600"></i> NOTE PILOTI
+                        </h2>
+                        <div id="notes-list" class="space-y-4 overflow-y-auto flex-1 pr-2">
                             <!-- Popolato da renderNotes -->
                         </div>
                     </section>
                 </div>
+
                 <div class="lg:col-span-3">
                     <section class="card p-6">
                         <div class="flex justify-between items-center mb-6">
@@ -254,7 +290,6 @@
             const stintsCol = collection(db, 'artifacts', appId, 'public', 'data', 'stints');
             const crewCol = collection(db, 'artifacts', appId, 'public', 'data', 'race_crew');
 
-            // Nascondi caricamento
             onSnapshot(configRef, (snap) => {
                 const loader = document.getElementById('loading');
                 if(loader) loader.style.display = 'none';
@@ -270,12 +305,11 @@
                 }
             });
 
-            // Sincronizzazione Tabelle
             onSnapshot(leaderboardCol, (snap) => {
                 const list = []; snap.forEach(d => list.push({id: d.id, ...d.data()}));
                 list.sort((a,b) => (a.lapTime || '9:99').localeCompare(b.lapTime || '9:99'));
                 renderTiming(list);
-                renderNotes(list); // Aggiunto per popolare il pannello Note Team
+                renderNotes(list);
             });
 
             onSnapshot(stintsCol, (snap) => {
@@ -288,7 +322,6 @@
                 renderTeams(teams);
             });
 
-            // Azioni Database
             window.addNewPilot = (col) => {
                 addDoc(collection(db, 'artifacts', appId, 'public', 'data', col), { name: "Nuovo Pilota", car: CAR_MODELS[0], lapTime: "2:00.000", racePace: "2:01.000", notes: "" });
             };
@@ -302,19 +335,16 @@
             };
 
             window.deletePilot = (id, col) => {
-                // Conferma eliminazione
-                const confirmMsg = col === 'race_crew' ? "Sei sicuro di voler eliminare l'intero team?" : "Eliminare questo pilota?";
-                if(!confirm(confirmMsg)) return;
+                if(!confirm("Confermi l'eliminazione?")) return;
                 deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', col, id));
             };
             
-            // Input tracciato
             document.querySelectorAll('.db-input').forEach(i => {
                 i.addEventListener('change', () => setDoc(configRef, {[i.id]: i.value}, {merge:true}));
             });
         }
 
-        // --- FUNZIONI DI RENDERING ---
+        // --- RENDERING ---
 
         function renderTiming(list) {
             const b = document.getElementById('timingBody');
@@ -342,7 +372,7 @@
             const validNotes = list.filter(p => p.notes && p.notes.trim() !== "");
             
             if(validNotes.length === 0) {
-                container.innerHTML = `<div class="text-[10px] text-gray-600 italic">Nessuna nota pilota presente.</div>`;
+                container.innerHTML = `<div class="text-[10px] text-gray-600 italic">Nessun commento dai piloti.</div>`;
                 return;
             }
 
@@ -374,28 +404,20 @@
         function renderTeams(teams) {
             const container = document.getElementById('teams-container');
             if(!container) return;
-            container.innerHTML = '';
-            
-            teams.forEach(team => {
-                const teamCard = document.createElement('div');
-                teamCard.className = "card p-6 grid grid-cols-1 md:grid-cols-4 gap-6 mb-4";
-                
-                const sortedPilots = [...(team.pilots || [])].sort((a,b) => a.seq - b.seq);
-
-                teamCard.innerHTML = `
+            container.innerHTML = teams.map(team => `
+                <div class="card p-6 grid grid-cols-1 md:grid-cols-4 gap-6 mb-4">
                     <div class="md:col-span-3 space-y-6">
                         <div class="flex justify-between items-start border-b border-gray-800 pb-4">
                             <div class="flex-1">
                                 <label class="text-[10px] uppercase text-red-500 font-bold tracking-widest">Team Profile</label>
                                 <div class="flex items-center gap-4">
                                     <input type="text" class="text-2xl font-racing bg-transparent outline-none w-full text-white" value="${team.teamName}" onchange="window.updateTeamName('${team.id}', this.value)">
-                                    <button onclick="window.deletePilot('${team.id}', 'race_crew')" class="text-red-600 hover:text-white transition-all bg-red-600/10 hover:bg-red-600 p-2 rounded-md text-sm border border-red-600/20" title="Elimina Team">
+                                    <button onclick="window.deletePilot('${team.id}', 'race_crew')" class="text-red-600 hover:text-white transition-all bg-red-600/10 hover:bg-red-600 p-2 rounded-md text-sm border border-red-600/20">
                                         <i class="fa-solid fa-trash"></i>
                                     </button>
                                 </div>
                             </div>
                         </div>
-
                         <div class="overflow-x-auto">
                             <table class="w-full text-left text-xs">
                                 <thead>
@@ -409,118 +431,68 @@
                                     </tr>
                                 </thead>
                                 <tbody class="divide-y divide-gray-800/50">
-                                    ${sortedPilots.length === 0 ? `<tr><td colspan="6" class="py-4 text-center text-gray-600 italic">Nessun pilota assegnato. Clicca su aggiungi pilota.</td></tr>` : sortedPilots.map((p, idx) => `
+                                    ${(team.pilots || []).sort((a,b) => a.seq - b.seq).map((p, idx) => `
                                         <tr>
-                                            <td class="py-3 px-1">
-                                                <input type="number" class="w-10 bg-black/40 border border-gray-800 rounded text-center py-1 text-red-500" value="${p.seq}" onchange="window.updatePilotInTeam('${team.id}', ${idx}, 'seq', this.value)">
-                                            </td>
-                                            <td class="py-3 px-1">
-                                                <input type="text" class="input-minimal font-bold" value="${p.name}" onchange="window.updatePilotInTeam('${team.id}', ${idx}, 'name', this.value)">
-                                            </td>
-                                            <td class="py-3 px-1 text-center">
-                                                <input type="checkbox" class="checkbox-custom" ${p.roles?.q ? 'checked' : ''} onchange="window.updateRoleInTeam('${team.id}', ${idx}, 'q', this.checked)">
-                                            </td>
-                                            <td class="py-3 px-1 text-center">
-                                                <input type="checkbox" class="checkbox-custom" ${p.roles?.s ? 'checked' : ''} onchange="window.updateRoleInTeam('${team.id}', ${idx}, 's', this.checked)">
-                                            </td>
-                                            <td class="py-3 px-1 text-center">
-                                                <input type="checkbox" class="checkbox-custom" ${p.roles?.d ? 'checked' : ''} onchange="window.updateRoleInTeam('${team.id}', ${idx}, 'd', this.checked)">
-                                            </td>
-                                            <td class="py-3 px-1 text-right">
-                                                <button onclick="window.removePilotFromTeam('${team.id}', ${idx})" class="text-gray-700 hover:text-red-500"><i class="fa-solid fa-xmark"></i></button>
-                                            </td>
+                                            <td class="py-3 px-1"><input type="number" class="w-10 bg-black/40 border border-gray-800 rounded text-center py-1 text-red-500" value="${p.seq}" onchange="window.updatePilotInTeam('${team.id}', ${idx}, 'seq', this.value)"></td>
+                                            <td class="py-3 px-1"><input type="text" class="input-minimal font-bold" value="${p.name}" onchange="window.updatePilotInTeam('${team.id}', ${idx}, 'name', this.value)"></td>
+                                            <td class="py-3 px-1 text-center"><input type="checkbox" class="checkbox-custom" ${p.roles?.q ? 'checked' : ''} onchange="window.updateRoleInTeam('${team.id}', ${idx}, 'q', this.checked)"></td>
+                                            <td class="py-3 px-1 text-center"><input type="checkbox" class="checkbox-custom" ${p.roles?.s ? 'checked' : ''} onchange="window.updateRoleInTeam('${team.id}', ${idx}, 's', this.checked)"></td>
+                                            <td class="py-3 px-1 text-center"><input type="checkbox" class="checkbox-custom" ${p.roles?.d ? 'checked' : ''} onchange="window.updateRoleInTeam('${team.id}', ${idx}, 'd', this.checked)"></td>
+                                            <td class="py-3 px-1 text-right"><button onclick="window.removePilotFromTeam('${team.id}', ${idx})" class="text-gray-700 hover:text-red-500"><i class="fa-solid fa-xmark"></i></button></td>
                                         </tr>
                                     `).join('')}
                                 </tbody>
                             </table>
                         </div>
-
-                        <button onclick="window.addPilotToTeam('${team.id}')" class="w-full py-3 border-2 border-dashed border-gray-800 text-gray-500 hover:border-red-600 hover:text-red-600 rounded text-[10px] font-bold uppercase tracking-widest transition-all">
-                            <i class="fa-solid fa-user-plus mr-2"></i> Aggiungi Pilota
-                        </button>
+                        <button onclick="window.addPilotToTeam('${team.id}')" class="w-full py-3 border-2 border-dashed border-gray-800 text-gray-500 hover:border-red-600 hover:text-red-600 rounded text-[10px] font-bold uppercase tracking-widest transition-all">Aggiungi Pilota</button>
                     </div>
-
                     <div class="md:col-span-1 bg-black/30 p-4 rounded-lg self-start">
                         <h3 class="text-[10px] uppercase text-gray-400 font-bold mb-4 tracking-widest border-b border-gray-800 pb-2">Legenda Ruoli</h3>
                         <div class="space-y-3">
-                            <div class="legend-item">
-                                <span class="legend-badge">Q</span>
-                                <div>
-                                    <p class="text-white font-bold text-[11px]">Qualifica</p>
-                                    <p class="text-[9px]">Pilota incaricato per il tempo sul giro.</p>
-                                </div>
-                            </div>
-                            <div class="legend-item">
-                                <span class="legend-badge">S</span>
-                                <div>
-                                    <p class="text-white font-bold text-[11px]">Start</p>
-                                    <p class="text-[9px]">Pilota che effettuerà la partenza.</p>
-                                </div>
-                            </div>
-                            <div class="legend-item">
-                                <span class="legend-badge">D</span>
-                                <div>
-                                    <p class="text-white font-bold text-[11px]">Driver</p>
-                                    <p class="text-[9px]">Pilota attivo nella rotazione gara.</p>
-                                </div>
-                            </div>
+                            <div class="flex items-center gap-3"><span class="bg-gray-800 text-red-500 p-1 px-2 rounded font-bold text-[10px]">Q</span><span class="text-[11px]">Qualifica</span></div>
+                            <div class="flex items-center gap-3"><span class="bg-gray-800 text-red-500 p-1 px-2 rounded font-bold text-[10px]">S</span><span class="text-[11px]">Start</span></div>
+                            <div class="flex items-center gap-3"><span class="bg-gray-800 text-red-500 p-1 px-2 rounded font-bold text-[10px]">D</span><span class="text-[11px]">Driver (Race)</span></div>
                         </div>
                     </div>
-                `;
-                container.appendChild(teamCard);
-            });
+                </div>
+            `).join('');
         }
 
-        // --- HELPERS AGGIORNAMENTO TEAM ---
-
-        window.updateTeamName = (id, val) => {
-            updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'race_crew', id), { teamName: val });
-        };
-
+        // --- TEAM HELPERS ---
+        window.updateTeamName = (id, val) => updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'race_crew', id), { teamName: val });
         window.addPilotToTeam = async (id) => {
             const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'race_crew', id);
             const snap = await getDoc(docRef);
             if(snap.exists()){
-                const data = snap.data();
-                const pilots = data.pilots || [];
+                const pilots = snap.data().pilots || [];
                 pilots.push({ name: "Nuovo Pilota", seq: pilots.length + 1, roles: {q:false, s:false, d:true} });
                 await updateDoc(docRef, { pilots });
             }
         };
-
         window.updatePilotInTeam = async (teamId, index, field, val) => {
             const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'race_crew', teamId);
             const snap = await getDoc(docRef);
             if(snap.exists()){
-                const data = snap.data();
-                const pilots = [...data.pilots];
-                if(pilots[index]) {
-                    pilots[index][field] = field === 'seq' ? parseInt(val) : val;
-                    await updateDoc(docRef, { pilots });
-                }
+                const pilots = [...snap.data().pilots];
+                pilots[index][field] = field === 'seq' ? parseInt(val) : val;
+                await updateDoc(docRef, { pilots });
             }
         };
-
         window.updateRoleInTeam = async (teamId, index, roleKey, val) => {
             const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'race_crew', teamId);
             const snap = await getDoc(docRef);
             if(snap.exists()){
-                const data = snap.data();
-                const pilots = [...data.pilots];
-                if(pilots[index]) {
-                    if(!pilots[index].roles) pilots[index].roles = {q:false, s:false, d:false};
-                    pilots[index].roles[roleKey] = val;
-                    await updateDoc(docRef, { pilots });
-                }
+                const pilots = [...snap.data().pilots];
+                if(!pilots[index].roles) pilots[index].roles = {};
+                pilots[index].roles[roleKey] = val;
+                await updateDoc(docRef, { pilots });
             }
         };
-
         window.removePilotFromTeam = async (teamId, index) => {
             const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'race_crew', teamId);
             const snap = await getDoc(docRef);
             if(snap.exists()){
-                const data = snap.data();
-                const pilots = data.pilots.filter((_, i) => i !== index);
+                const pilots = snap.data().pilots.filter((_, i) => i !== index);
                 await updateDoc(docRef, { pilots });
             }
         };
