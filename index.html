@@ -123,7 +123,7 @@
                 </div>
             </section>
 
-            <!-- Pannello Live Timing -->
+            <!-- Pannello Live Timing Dashboard -->
             <section class="card p-6">
                 <div class="flex justify-between items-center mb-6">
                     <h2 class="text-lg font-racing text-white uppercase flex items-center">
@@ -153,10 +153,35 @@
         </div>
 
         <!-- STINT CONFIG -->
-        <div id="page-stint" class="page-content">
-             <section class="card p-6 text-center">
-                <p class="text-gray-500 italic">Configurazione Stint in attesa di dati telemetrici...</p>
-             </section>
+        <div id="page-stint" class="page-content space-y-6">
+             <!-- Pannello Live Timing Stint Config -->
+            <section class="card p-6">
+                <div class="flex justify-between items-center mb-6">
+                    <h2 class="text-lg font-racing text-white uppercase flex items-center">
+                        <i class="fa-solid fa-sliders text-red-600 mr-2"></i> Stint Configurator
+                    </h2>
+                    <button class="btn-primary text-white px-4 py-2 rounded text-[10px] font-bold uppercase tracking-wider" onclick="addNewPilot('stint_leaderboard')">
+                        <i class="fa-solid fa-plus mr-1"></i> Nuovo Stint
+                    </button>
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left text-sm border-separate border-spacing-y-2">
+                        <thead class="bg-black/40 text-[10px] uppercase text-gray-500">
+                            <tr>
+                                <th class="p-4 w-12 text-center">Pos</th>
+                                <th class="p-4 w-16 text-center text-red-500">N° Stint</th>
+                                <th class="p-4 min-w-[250px]">Pilota & Feedback</th>
+                                <th class="p-4 min-w-[180px]">Auto</th>
+                                <th class="p-4 text-right">Miglior Giro</th>
+                                <th class="p-4 text-right">Passo Gara</th>
+                                <th class="p-4 text-right text-blue-400">Consumo (L/G)</th>
+                                <th class="p-4 w-12"></th>
+                            </tr>
+                        </thead>
+                        <tbody id="stintTimingBody"></tbody>
+                    </table>
+                </div>
+            </section>
         </div>
 
         <!-- RACE CREW -->
@@ -207,7 +232,6 @@
             document.getElementById(`nav-${pageId}`)?.classList.add('active');
         };
 
-        // Correzione errore Token Mismatch: Fallback immediato a login anonimo se il custom token fallisce
         const initAuth = async () => {
             try {
                 if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
@@ -240,7 +264,9 @@
             hideLoading();
             const configRef = doc(db, 'artifacts', appId, 'public', 'data', 'config', 'main');
             const leaderboardCol = collection(db, 'artifacts', appId, 'public', 'data', 'leaderboard');
+            const stintLeaderboardCol = collection(db, 'artifacts', appId, 'public', 'data', 'stint_leaderboard');
             
+            // Sync Config (Track Info)
             onSnapshot(configRef, (snap) => {
                 document.getElementById('sync-status').textContent = "LIVE";
                 document.getElementById('sync-status').className = "font-bold text-green-500 text-xs italic uppercase";
@@ -257,12 +283,21 @@
                 document.getElementById('sync-status').className = "font-bold text-red-500 text-xs uppercase";
             });
 
+            // Sync Dashboard Leaderboard
             onSnapshot(leaderboardCol, (snap) => {
                 const list = [];
                 snap.forEach(d => list.push({ id: d.id, ...d.data() }));
                 list.sort((a,b) => (a.lapTime || '9:99.999').localeCompare(b.lapTime || '9:99.999'));
-                renderTiming(list);
+                renderTiming(list, 'timingBody', 'leaderboard');
             }, (error) => console.error("Errore sync leaderboard:", error));
+
+            // Sync Stint Leaderboard (Separata)
+            onSnapshot(stintLeaderboardCol, (snap) => {
+                const list = [];
+                snap.forEach(d => list.push({ id: d.id, ...d.data() }));
+                list.sort((a,b) => (a.lapTime || '9:99.999').localeCompare(b.lapTime || '9:99.999'));
+                renderTiming(list, 'stintTimingBody', 'stint_leaderboard', true);
+            }, (error) => console.error("Errore sync stint leaderboard:", error));
 
             document.querySelectorAll('.db-input').forEach(input => {
                 input.addEventListener('change', (e) => {
@@ -272,27 +307,32 @@
             });
         }
 
-        function renderTiming(list) {
-            const body = document.getElementById('timingBody');
+        function renderTiming(list, containerId, collectionName, showStintNum = false) {
+            const body = document.getElementById(containerId);
             if(!body) return;
-            body.innerHTML = list.length === 0 ? '<tr><td colspan="7" class="p-8 text-center text-gray-600 italic">In attesa di dati stint dai piloti...</td></tr>' : 
+            body.innerHTML = list.length === 0 ? `<tr><td colspan="${showStintNum?8:7}" class="p-8 text-center text-gray-600 italic">In attesa di dati...</td></tr>` : 
             list.map((p, i) => `
                 <tr class="bg-black/20 hover:bg-white/5 transition-colors">
                     <td class="p-4 font-racing ${i===0?'text-red-500 font-bold':'text-gray-500'} text-center align-top">${i+1}</td>
+                    ${showStintNum ? `
+                        <td class="p-4 align-top">
+                            <input class="input-minimal text-center font-racing font-bold text-red-500" value="${p.stintNumber || '1'}" onchange="updateEntry('${p.id}','${collectionName}','stintNumber',this.value)">
+                        </td>
+                    ` : ''}
                     <td class="p-4 align-top">
-                        <input class="input-minimal font-bold mb-1" value="${p.name || ''}" onchange="updateEntry('${p.id}','leaderboard','name',this.value)">
-                        <textarea class="note-area" placeholder="Analisi stint e feedback vettura..." onchange="updateEntry('${p.id}','leaderboard','notes',this.value)">${p.notes || ''}</textarea>
+                        <input class="input-minimal font-bold mb-1" value="${p.name || ''}" onchange="updateEntry('${p.id}','${collectionName}','name',this.value)">
+                        <textarea class="note-area" placeholder="Analisi stint e feedback vettura..." onchange="updateEntry('${p.id}','${collectionName}','notes',this.value)">${p.notes || ''}</textarea>
                     </td>
                     <td class="p-4 align-top">
-                        <select class="select-minimal" onchange="updateEntry('${p.id}','leaderboard','car',this.value)">
+                        <select class="select-minimal" onchange="updateEntry('${p.id}','${collectionName}','car',this.value)">
                             ${CAR_MODELS.map(m => `<option ${p.car===m?'selected':''}>${m}</option>`).join('')}
                         </select>
                     </td>
-                    <td class="p-4 text-right align-top"><input class="input-minimal text-right font-mono" value="${p.lapTime || ''}" placeholder="2:18.000" onchange="updateEntry('${p.id}','leaderboard','lapTime',this.value)"></td>
-                    <td class="p-4 text-right align-top"><input class="input-minimal text-right font-mono text-red-500" value="${p.racePace || ''}" placeholder="2:19.500" onchange="updateEntry('${p.id}','leaderboard','racePace',this.value)"></td>
-                    <td class="p-4 text-right align-top"><input class="input-minimal text-right font-mono text-blue-400" value="${p.fuelPerLap || ''}" placeholder="3.20" onchange="updateEntry('${p.id}','leaderboard','fuelPerLap',this.value)"></td>
+                    <td class="p-4 text-right align-top"><input class="input-minimal text-right font-mono" value="${p.lapTime || ''}" placeholder="2:18.000" onchange="updateEntry('${p.id}','${collectionName}','lapTime',this.value)"></td>
+                    <td class="p-4 text-right align-top"><input class="input-minimal text-right font-mono text-red-500" value="${p.racePace || ''}" placeholder="2:19.500" onchange="updateEntry('${p.id}','${collectionName}','racePace',this.value)"></td>
+                    <td class="p-4 text-right align-top"><input class="input-minimal text-right font-mono text-blue-400" value="${p.fuelPerLap || ''}" placeholder="3.20" onchange="updateEntry('${p.id}','${collectionName}','fuelPerLap',this.value)"></td>
                     <td class="p-4 text-center align-top">
-                        <button onclick="deleteEntry('${p.id}','leaderboard')" class="text-gray-700 hover:text-red-500 pt-1"><i class="fa-solid fa-trash"></i></button>
+                        <button onclick="deleteEntry('${p.id}','${collectionName}')" class="text-gray-700 hover:text-red-500 pt-1"><i class="fa-solid fa-trash"></i></button>
                     </td>
                 </tr>
             `).join('');
@@ -300,9 +340,11 @@
 
         window.addNewPilot = async (col) => {
             if (!currentUser) return;
-            await addDoc(collection(db, 'artifacts', appId, 'public', 'data', col), { 
+            const data = { 
                 name: "Nuovo Pilota", car: CAR_MODELS[0], lapTime: "", racePace: "", fuelPerLap: "", notes: "", createdAt: Date.now() 
-            });
+            };
+            if (col === 'stint_leaderboard') data.stintNumber = "1";
+            await addDoc(collection(db, 'artifacts', appId, 'public', 'data', col), data);
         };
 
         window.updateEntry = async (id, col, field, val) => {
@@ -312,7 +354,7 @@
 
         window.deleteEntry = async (id, col) => {
             if(!currentUser) return;
-            if(confirm("Rimuovere questo stint dal database?")) deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', col, id));
+            if(confirm("Rimuovere questa riga dal database?")) deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', col, id));
         };
     </script>
 </body>
