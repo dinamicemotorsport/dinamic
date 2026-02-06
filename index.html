@@ -33,6 +33,11 @@
         .note-area:focus { border-color: var(--race-red); color: white; background: rgba(0,0,0,0.5); }
 
         .directive-card { background: linear-gradient(90deg, rgba(225, 6, 0, 0.1) 0%, rgba(30, 30, 30, 1) 100%); border-left: 4px solid var(--race-red); }
+
+        /* Checkbox custom style */
+        .role-check { appearance: none; width: 18px; height: 18px; border: 1px solid #444; border-radius: 3px; cursor: pointer; position: relative; transition: all 0.2s; }
+        .role-check:checked { background-color: var(--race-red); border-color: var(--race-red); }
+        .role-check:checked::after { content: '\f00c'; font-family: 'Font Awesome 6 Free'; font-weight: 900; font-size: 10px; color: white; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); }
     </style>
 </head>
 <body class="p-4 md:p-8">
@@ -70,7 +75,6 @@
     <main class="max-w-7xl mx-auto space-y-6">
         <!-- DASHBOARD -->
         <div id="page-dashboard" class="page-content active space-y-6">
-            
             <!-- Pannello Direttive Piloti -->
             <section class="directive-card p-5 rounded-r-lg">
                 <h2 class="text-xs font-racing mb-4 text-red-500 uppercase tracking-[0.2em] font-bold">
@@ -154,7 +158,6 @@
 
         <!-- STINT CONFIG -->
         <div id="page-stint" class="page-content space-y-6">
-             <!-- Pannello Live Timing Stint Config -->
             <section class="card p-6">
                 <div class="flex justify-between items-center mb-6">
                     <h2 class="text-lg font-racing text-white uppercase flex items-center">
@@ -185,17 +188,26 @@
         </div>
 
         <!-- RACE CREW -->
-        <div id="page-crew" class="page-content">
-             <section class="card p-6 text-center">
-                <p class="text-gray-500 italic">Dati Race Crew non ancora sincronizzati.</p>
-             </section>
+        <div id="page-crew" class="page-content space-y-6">
+            <div class="flex justify-between items-center">
+                <h2 class="text-lg font-racing text-white uppercase flex items-center">
+                    <i class="fa-solid fa-users text-red-600 mr-2"></i> Race Crew & Teams
+                </h2>
+                <button class="btn-primary text-white px-4 py-2 rounded text-[10px] font-bold uppercase tracking-wider" onclick="addNewTeam()">
+                    <i class="fa-solid fa-plus mr-1"></i> Aggiungi Team
+                </button>
+            </div>
+            
+            <div id="crewContainer" class="grid grid-cols-1 gap-6">
+                <!-- Teams will be rendered here -->
+            </div>
         </div>
     </main>
 
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, signInAnonymously, onAuthStateChanged, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, doc, setDoc, onSnapshot, collection, updateDoc, deleteDoc, addDoc, getDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getFirestore, doc, setDoc, onSnapshot, collection, updateDoc, deleteDoc, addDoc, getDoc, query, orderBy } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
         const CAR_MODELS = ["Ferrari 296 GT3", "Porsche 911 GT3 R (992)", "BMW M4 GT3", "Lamborghini Huracan GT3 EVO2", "McLaren 720S GT3 Evo", "Mercedes-AMG GT3 Evo", "Audi R8 LMS GT3 evo II", "Aston Martin Vantage AMR GT3 Evo", "Ford Mustang GT3", "Corvette Z06 GT3.R"];
         
@@ -265,8 +277,9 @@
             const configRef = doc(db, 'artifacts', appId, 'public', 'data', 'config', 'main');
             const leaderboardCol = collection(db, 'artifacts', appId, 'public', 'data', 'leaderboard');
             const stintLeaderboardCol = collection(db, 'artifacts', appId, 'public', 'data', 'stint_leaderboard');
+            const crewCol = collection(db, 'artifacts', appId, 'public', 'data', 'race_crew');
             
-            // Sync Config (Track Info)
+            // Sync Config
             onSnapshot(configRef, (snap) => {
                 document.getElementById('sync-status').textContent = "LIVE";
                 document.getElementById('sync-status').className = "font-bold text-green-500 text-xs italic uppercase";
@@ -277,10 +290,6 @@
                         if (el && document.activeElement !== el) el.value = data[f] || "";
                     });
                 }
-            }, (error) => {
-                console.error("Errore sync config:", error);
-                document.getElementById('sync-status').textContent = "ERROR";
-                document.getElementById('sync-status').className = "font-bold text-red-500 text-xs uppercase";
             });
 
             // Sync Dashboard Leaderboard
@@ -289,15 +298,23 @@
                 snap.forEach(d => list.push({ id: d.id, ...d.data() }));
                 list.sort((a,b) => (a.lapTime || '9:99.999').localeCompare(b.lapTime || '9:99.999'));
                 renderTiming(list, 'timingBody', 'leaderboard');
-            }, (error) => console.error("Errore sync leaderboard:", error));
+            });
 
-            // Sync Stint Leaderboard (Separata)
+            // Sync Stint Leaderboard
             onSnapshot(stintLeaderboardCol, (snap) => {
                 const list = [];
                 snap.forEach(d => list.push({ id: d.id, ...d.data() }));
                 list.sort((a,b) => (a.lapTime || '9:99.999').localeCompare(b.lapTime || '9:99.999'));
                 renderTiming(list, 'stintTimingBody', 'stint_leaderboard', true);
-            }, (error) => console.error("Errore sync stint leaderboard:", error));
+            });
+
+            // Sync Race Crew
+            onSnapshot(crewCol, (snap) => {
+                const teams = [];
+                snap.forEach(d => teams.push({ id: d.id, ...d.data() }));
+                teams.sort((a,b) => a.createdAt - b.createdAt);
+                renderCrew(teams);
+            });
 
             document.querySelectorAll('.db-input').forEach(input => {
                 input.addEventListener('change', (e) => {
@@ -338,6 +355,79 @@
             `).join('');
         }
 
+        function renderCrew(teams) {
+            const container = document.getElementById('crewContainer');
+            if(!container) return;
+            
+            if (teams.length === 0) {
+                container.innerHTML = `<div class="card p-12 text-center text-gray-500 italic">Nessun team configurato. Clicca su "Aggiungi Team" per iniziare.</div>`;
+                return;
+            }
+
+            container.innerHTML = teams.map(team => `
+                <div class="card p-6 border-l-8">
+                    <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
+                        <div class="flex-1 w-full md:w-auto">
+                            <label class="text-[10px] uppercase text-gray-500 font-bold tracking-wider">Nome Team</label>
+                            <div class="flex items-center gap-4">
+                                <input class="input-minimal font-racing text-xl text-white" value="${team.name || ''}" onchange="updateEntry('${team.id}','race_crew','name',this.value)">
+                                <select class="select-minimal max-w-[200px]" onchange="updateEntry('${team.id}','race_crew','car',this.value)">
+                                    <option value="">Seleziona Auto...</option>
+                                    ${CAR_MODELS.map(m => `<option ${team.car===m?'selected':''}>${m}</option>`).join('')}
+                                </select>
+                            </div>
+                        </div>
+                        <div class="flex gap-2">
+                            <button class="bg-white/10 hover:bg-white/20 text-white px-3 py-1.5 rounded text-[10px] font-bold uppercase" onclick="addDriverToTeam('${team.id}')">
+                                <i class="fa-solid fa-user-plus mr-1"></i> Pilota
+                            </button>
+                            <button class="bg-red-900/30 hover:bg-red-900/50 text-red-500 px-3 py-1.5 rounded text-[10px] font-bold uppercase" onclick="deleteEntry('${team.id}','race_crew')">
+                                <i class="fa-solid fa-trash"></i>
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left text-sm">
+                            <thead class="text-[10px] uppercase text-gray-500 border-b border-white/5">
+                                <tr>
+                                    <th class="py-2 px-4">Pilota</th>
+                                    <th class="py-2 px-4 text-center w-24">Q (Qualy)</th>
+                                    <th class="py-2 px-4 text-center w-24">S (Start)</th>
+                                    <th class="py-2 px-4 text-center w-24">D (Driver)</th>
+                                    <th class="py-2 px-4 w-12"></th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${(team.drivers || []).map((driver, dIdx) => `
+                                    <tr class="border-b border-white/5 last:border-0">
+                                        <td class="py-3 px-4">
+                                            <input class="input-minimal font-semibold" value="${driver.name || ''}" placeholder="Nome Cognome" onchange="updateDriver('${team.id}', ${dIdx}, 'name', this.value)">
+                                        </td>
+                                        <td class="py-3 px-4 text-center">
+                                            <input type="checkbox" class="role-check" ${driver.isQualy ? 'checked' : ''} onchange="updateDriver('${team.id}', ${dIdx}, 'isQualy', this.checked)">
+                                        </td>
+                                        <td class="py-3 px-4 text-center">
+                                            <input type="checkbox" class="role-check" ${driver.isStart ? 'checked' : ''} onchange="updateDriver('${team.id}', ${dIdx}, 'isStart', this.checked)">
+                                        </td>
+                                        <td class="py-3 px-4 text-center">
+                                            <input type="checkbox" class="role-check" ${driver.isDriver ? 'checked' : ''} onchange="updateDriver('${team.id}', ${dIdx}, 'isDriver', this.checked)">
+                                        </td>
+                                        <td class="py-3 px-4 text-right">
+                                            <button onclick="removeDriverFromTeam('${team.id}', ${dIdx})" class="text-gray-700 hover:text-red-500 transition-colors">
+                                                <i class="fa-solid fa-xmark"></i>
+                                            </button>
+                                        </td>
+                                    </tr>
+                                `).join('')}
+                                ${(!team.drivers || team.drivers.length === 0) ? '<tr><td colspan="5" class="py-4 text-center text-gray-600 text-xs italic">Nessun pilota assegnato</td></tr>' : ''}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            `).join('');
+        }
+
         window.addNewPilot = async (col) => {
             if (!currentUser) return;
             const data = { 
@@ -347,6 +437,49 @@
             await addDoc(collection(db, 'artifacts', appId, 'public', 'data', col), data);
         };
 
+        window.addNewTeam = async () => {
+            if (!currentUser) return;
+            await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'race_crew'), {
+                name: "Nuovo Team",
+                car: "",
+                drivers: [],
+                createdAt: Date.now()
+            });
+        };
+
+        window.addDriverToTeam = async (teamId) => {
+            if (!currentUser) return;
+            const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'race_crew', teamId);
+            const snap = await getDoc(docRef);
+            if (snap.exists()) {
+                const drivers = snap.data().drivers || [];
+                drivers.push({ name: "", isQualy: false, isStart: false, isDriver: true });
+                await updateDoc(docRef, { drivers });
+            }
+        };
+
+        window.updateDriver = async (teamId, dIdx, field, val) => {
+            if (!currentUser) return;
+            const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'race_crew', teamId);
+            const snap = await getDoc(docRef);
+            if (snap.exists()) {
+                const drivers = [...snap.data().drivers];
+                drivers[dIdx][field] = val;
+                await updateDoc(docRef, { drivers });
+            }
+        };
+
+        window.removeDriverFromTeam = async (teamId, dIdx) => {
+            if (!currentUser) return;
+            const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'race_crew', teamId);
+            const snap = await getDoc(docRef);
+            if (snap.exists()) {
+                const drivers = snap.data().drivers || [];
+                drivers.splice(dIdx, 1);
+                await updateDoc(docRef, { drivers });
+            }
+        };
+
         window.updateEntry = async (id, col, field, val) => {
             if (!currentUser) return;
             updateDoc(doc(db, 'artifacts', appId, 'public', 'data', col, id), { [field]: val });
@@ -354,7 +487,7 @@
 
         window.deleteEntry = async (id, col) => {
             if(!currentUser) return;
-            if(confirm("Rimuovere questa riga dal database?")) deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', col, id));
+            if(confirm("Eliminare definitivamente questi dati?")) deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', col, id));
         };
     </script>
 </body>
