@@ -72,6 +72,8 @@
 
         .legend-item { display: flex; align-items: center; gap: 8px; font-size: 0.75rem; color: #999; margin-bottom: 4px; }
         .legend-badge { background: #2a2a2a; color: var(--race-red); padding: 2px 6px; border-radius: 4px; font-weight: bold; font-family: 'Orbitron', sans-serif; min-width: 24px; text-align: center; }
+        
+        .note-card { background: rgba(0,0,0,0.2); border: 1px solid rgba(255,255,255,0.05); border-radius: 4px; padding: 10px; }
     </style>
 </head>
 <body class="p-4 md:p-8">
@@ -126,8 +128,13 @@
                         </div>
                     </section>
                     <section class="card p-6 flex flex-col h-[500px]">
-                        <h2 class="text-xl font-racing mb-4 text-white">NOTE TEAM</h2>
-                        <div id="notes-list" class="space-y-4 overflow-y-auto flex-1"></div>
+                        <div class="flex justify-between items-center mb-4">
+                            <h2 class="text-xl font-racing text-white">NOTE TEAM</h2>
+                            <button onclick="window.addNote()" class="text-red-500 hover:text-white transition-colors text-xs font-bold uppercase tracking-tighter"><i class="fa-solid fa-plus"></i></button>
+                        </div>
+                        <div id="notes-list" class="space-y-4 overflow-y-auto flex-1 pr-2">
+                            <!-- Note verranno renderizzate qui -->
+                        </div>
                     </section>
                 </div>
                 <div class="lg:col-span-3">
@@ -171,7 +178,10 @@
                     </section>
                 </div>
                 <div class="lg:col-span-1">
-                    <section class="card p-6 h-[500px] overflow-y-auto" id="stint-notes-list"></section>
+                    <section class="card p-6 h-[500px] flex flex-col">
+                         <h2 class="text-xl font-racing text-white mb-4">NOTE STRATEGIA</h2>
+                         <div id="stint-notes-list" class="space-y-4 overflow-y-auto flex-1 pr-2"></div>
+                    </section>
                 </div>
             </div>
         </div>
@@ -232,8 +242,9 @@
             const leaderboardCol = collection(db, 'artifacts', appId, 'public', 'data', 'leaderboard');
             const stintsCol = collection(db, 'artifacts', appId, 'public', 'data', 'stints');
             const crewCol = collection(db, 'artifacts', appId, 'public', 'data', 'race_crew');
+            const notesCol = collection(db, 'artifacts', appId, 'public', 'data', 'notes');
 
-            // Nascondi caricamento
+            // Sincronizzazione Config Generale
             onSnapshot(configRef, (snap) => {
                 const loader = document.getElementById('loading');
                 if(loader) loader.style.display = 'none';
@@ -247,26 +258,35 @@
                         if(el && document.activeElement !== el) el.value = d[id] || "";
                     });
                 }
-            });
+            }, (err) => console.error("Error loading config:", err));
 
-            // Sincronizzazione Tabelle
+            // Sincronizzazione Tabelle Timing
             onSnapshot(leaderboardCol, (snap) => {
                 const list = []; snap.forEach(d => list.push({id: d.id, ...d.data()}));
                 list.sort((a,b) => (a.lapTime || '9:99').localeCompare(b.lapTime || '9:99'));
                 renderTiming(list);
             });
 
+            // Sincronizzazione Stint
             onSnapshot(stintsCol, (snap) => {
                 const list = []; snap.forEach(d => list.push({id: d.id, ...d.data()}));
                 renderStints(list);
             });
 
+            // Sincronizzazione Race Crew
             onSnapshot(crewCol, (snap) => {
                 const teams = []; snap.forEach(d => teams.push({id: d.id, ...d.data()}));
                 renderTeams(teams);
             });
 
-            // Azioni Database
+            // Sincronizzazione Note (Dashboard e Stint)
+            onSnapshot(notesCol, (snap) => {
+                const notes = []; snap.forEach(d => notes.push({id: d.id, ...d.data()}));
+                renderNotes(notes);
+            });
+
+            // --- AZIONI DATABASE ---
+
             window.addNewPilot = (col) => {
                 addDoc(collection(db, 'artifacts', appId, 'public', 'data', col), { name: "Pilota", car: CAR_MODELS[0], lapTime: "2:00.000", racePace: "2:01.000" });
             };
@@ -275,18 +295,25 @@
                 addDoc(crewCol, { teamName: "Nuovo Team", pilots: [] });
             };
 
+            window.addNote = () => {
+                addDoc(notesCol, { author: "Team", content: "Nuova nota...", timestamp: Date.now() });
+            };
+
             window.updatePilot = (id, col, field, val) => {
                 updateDoc(doc(db, 'artifacts', appId, 'public', 'data', col, id), {[field]: val});
             };
 
+            window.updateNote = (id, val) => {
+                updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'notes', id), { content: val });
+            };
+
             window.deletePilot = (id, col) => {
-                // Conferma eliminazione
-                const confirmMsg = col === 'race_crew' ? "Sei sicuro di voler eliminare l'intero team?" : "Eliminare questo pilota?";
+                const confirmMsg = col === 'race_crew' ? "Eliminare l'intero team?" : (col === 'notes' ? "Eliminare questa nota?" : "Eliminare questo pilota?");
                 if(!confirm(confirmMsg)) return;
                 deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', col, id));
             };
             
-            // Input tracciato
+            // Input tracciato listener
             document.querySelectorAll('.db-input').forEach(i => {
                 i.addEventListener('change', () => setDoc(configRef, {[i.id]: i.value}, {merge:true}));
             });
@@ -328,6 +355,33 @@
             `).join('');
         }
 
+        function renderNotes(notes) {
+            const dashList = document.getElementById('notes-list');
+            const stintList = document.getElementById('stint-notes-list');
+            if(!dashList || !stintList) return;
+
+            const html = notes.map(n => `
+                <div class="note-card group relative">
+                    <div class="flex justify-between items-start mb-1">
+                        <span class="text-[9px] uppercase font-bold text-red-600">${n.author || 'Team'}</span>
+                        <button onclick="window.deletePilot('${n.id}', 'notes')" class="opacity-0 group-hover:opacity-100 text-gray-600 hover:text-red-500 text-[10px] transition-all"><i class="fa-solid fa-xmark"></i></button>
+                    </div>
+                    <textarea class="bg-transparent text-xs text-gray-300 w-full outline-none resize-none overflow-hidden" 
+                        oninput="this.style.height = '';this.style.height = this.scrollHeight + 'px'"
+                        onchange="window.updateNote('${n.id}', this.value)">${n.content}</textarea>
+                </div>
+            `).join('');
+
+            dashList.innerHTML = html;
+            stintList.innerHTML = html;
+            
+            // Auto-resize textareas after render
+            document.querySelectorAll('textarea').forEach(tx => {
+                tx.style.height = 'auto';
+                tx.style.height = tx.scrollHeight + 'px';
+            });
+        }
+
         function renderTeams(teams) {
             const container = document.getElementById('teams-container');
             if(!container) return;
@@ -366,7 +420,7 @@
                                     </tr>
                                 </thead>
                                 <tbody class="divide-y divide-gray-800/50">
-                                    ${sortedPilots.length === 0 ? `<tr><td colspan="6" class="py-4 text-center text-gray-600 italic">Nessun pilota assegnato. Clicca su aggiungi pilota.</td></tr>` : sortedPilots.map((p, idx) => `
+                                    ${sortedPilots.length === 0 ? `<tr><td colspan="6" class="py-4 text-center text-gray-600 italic">Nessun pilota assegnato.</td></tr>` : sortedPilots.map((p, idx) => `
                                         <tr>
                                             <td class="py-3 px-1">
                                                 <input type="number" class="w-10 bg-black/40 border border-gray-800 rounded text-center py-1 text-red-500" value="${p.seq}" onchange="window.updatePilotInTeam('${team.id}', ${idx}, 'seq', this.value)">
